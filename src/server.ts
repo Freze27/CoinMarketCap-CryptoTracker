@@ -1,10 +1,13 @@
 import { createApp } from './app';
-import { config } from './config';
+import { loadConfig } from './config';
 import { openDatabase } from './db/database';
+import { runMigrations } from './db/migrate';
 
 function start(): void {
   try {
+    const config = loadConfig();
     const db = openDatabase(config.databasePath);
+    runMigrations(db);
     const app = createApp({ db });
 
     app.listen(config.port, (error) => {

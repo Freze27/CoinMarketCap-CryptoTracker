@@ -3,12 +3,13 @@
     "target": "ES2024",
     "lib": ["ES2024"],
     "module": "node16",
-    "types": ["node"],
+    "types": ["node", "jest"],
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }
