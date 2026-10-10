@@ -6,4 +6,5 @@ export interface MarketCoin {
 
 export interface MarketDataProvider {
   findCoinBySymbol(symbol: string): Promise<MarketCoin | null>;
+  getLatestPrices(cmcIds: number[]): Promise<Map<number, number>>;
 }

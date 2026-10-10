@@ -55,6 +55,12 @@ export class ConflictError extends AppError {
   }
 }
 
+export class CryptocurrencyAlreadyExistsError extends ConflictError {
+  constructor(symbol: string) {
+    super(`Cryptocurrency with symbol "${symbol}" already exists`, { symbol });
+  }
+}
+
 export class DatabaseError extends AppError {
   constructor(operation: string, cause: unknown) {
     super(`Database operation failed: ${operation}`, 500, { context: { operation }, cause });

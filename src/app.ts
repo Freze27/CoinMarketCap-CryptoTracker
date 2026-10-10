@@ -8,17 +8,31 @@ import { createCryptocurrencyRouter } from './modules/cryptocurrencies/cryptocur
 import { CryptocurrencyService } from './modules/cryptocurrencies/cryptocurrency.service';
 import { SqliteCryptocurrencyRepository } from './modules/cryptocurrencies/sqlite-cryptocurrency.repository';
 import { createHealthRouter } from './modules/health/health.routes';
+import { PriceController } from './modules/prices/price.controller';
+import { createPriceRouter } from './modules/prices/price.routes';
+import { PriceService } from './modules/prices/price.service';
+import { SqlitePriceHistoryRepository } from './modules/prices/sqlite-price-history.repository';
 
 interface AppDependencies {
   db: Database;
   marketData: MarketDataProvider;
   apiKey: string;
+  priceCacheTtlMs: number;
 }
 
-export function createApp({ db, marketData, apiKey }: AppDependencies): Express {
+export function createApp({ db, marketData, apiKey, priceCacheTtlMs }: AppDependencies): Express {
   const cryptocurrencyRepository = new SqliteCryptocurrencyRepository(db);
   const cryptocurrencyService = new CryptocurrencyService(cryptocurrencyRepository, marketData);
   const cryptocurrencyController = new CryptocurrencyController(cryptocurrencyService);
+
+  const priceHistoryRepository = new SqlitePriceHistoryRepository(db);
+  const priceService = new PriceService(
+    cryptocurrencyRepository,
+    priceHistoryRepository,
+    marketData,
+    priceCacheTtlMs,
+  );
+  const priceController = new PriceController(priceService);
 
   const app = express();
 
@@ -28,6 +42,7 @@ export function createApp({ db, marketData, apiKey }: AppDependencies): Express 
     createAuthMiddleware(apiKey),
     express.json(),
     createCryptocurrencyRouter(cryptocurrencyController),
+    createPriceRouter(priceController),
   );
   app.use(notFoundHandler);
   app.use(errorHandler);

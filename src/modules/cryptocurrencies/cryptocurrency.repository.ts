@@ -19,6 +19,7 @@ export interface UpdateCryptocurrencyData {
 export interface CryptocurrencyRepository {
   findAll(): Promise<Cryptocurrency[]>;
   findById(id: string): Promise<Cryptocurrency | null>;
+  findBySymbol(symbol: string): Promise<Cryptocurrency | null>;
   create(data: CreateCryptocurrencyData): Promise<Cryptocurrency>;
   update(id: string, data: UpdateCryptocurrencyData): Promise<Cryptocurrency | null>;
   delete(id: string): Promise<boolean>;
