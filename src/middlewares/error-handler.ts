@@ -1,6 +1,6 @@
 import { STATUS_CODES } from 'node:http';
 import type { NextFunction, Request, Response } from 'express';
-import { AppError, NotFoundError, ValidationError } from '../errors';
+import { AppError, NotFoundError, UnauthorizedError, ValidationError } from '../errors';
 
 function isInvalidJsonError(error: unknown): boolean {
   return (error as { type?: string } | null)?.type === 'entity.parse.failed';
@@ -20,6 +20,10 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
   if (error instanceof ValidationError) {
     res.status(error.statusCode).json({ error: { message: error.message, details: error.details } });
     return;
+  }
+
+  if (error instanceof UnauthorizedError) {
+    res.setHeader('WWW-Authenticate', 'Bearer');
   }
 
   if (error instanceof AppError && error.statusCode !== 500) {

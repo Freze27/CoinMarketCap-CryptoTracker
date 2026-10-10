@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { createTestApp } from '../helpers/app';
+import { AUTH_HEADER, createTestApp } from '../helpers/app';
 
 describe('GET /health', () => {
   it('Health_ShouldReturn200_WhenDatabaseIsAvailable', async () => {
@@ -26,10 +26,20 @@ describe('GET /health', () => {
 });
 
 describe('unknown route', () => {
-  it('UnknownRoute_ShouldReturn404_WhenRouteDoesNotExist', async () => {
+  it('UnknownRoute_ShouldReturn404_WhenRouteIsOutsideApi', async () => {
     const { app, db } = createTestApp();
 
-    const response = await request(app).get('/api/unknown');
+    const response = await request(app).get('/unknown');
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: { message: 'Route GET /unknown not found' } });
+    db.close();
+  });
+
+  it('UnknownRoute_ShouldReturn404_WhenApiRouteDoesNotExistAndTokenIsValid', async () => {
+    const { app, db } = createTestApp();
+
+    const response = await request(app).get('/api/unknown').set('Authorization', AUTH_HEADER);
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({ error: { message: 'Route GET /api/unknown not found' } });

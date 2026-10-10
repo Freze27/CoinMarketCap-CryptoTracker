@@ -9,6 +9,7 @@ export interface CoinMarketCapConfig {
 export interface AppConfig {
   port: number;
   databasePath: string;
+  apiKey: string;
   coinMarketCap: CoinMarketCapConfig;
 }
 
@@ -51,6 +52,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: readInteger('PORT', env.PORT, 3000, 1, 65535),
     databasePath: readString('DATABASE_PATH', env.DATABASE_PATH, DEFAULT_DATABASE_PATH),
+    apiKey: readString('API_KEY', env.API_KEY),
     coinMarketCap: {
       apiKey: readString('CMC_API_KEY', env.CMC_API_KEY),
       baseUrl: readString('CMC_BASE_URL', env.CMC_BASE_URL, DEFAULT_CMC_BASE_URL),

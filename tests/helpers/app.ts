@@ -7,6 +7,9 @@ import { createTestDatabase } from './database';
 
 jest.mock('axios');
 
+export const TEST_API_KEY = 'test-api-key';
+export const AUTH_HEADER = `Bearer ${TEST_API_KEY}`;
+
 export const CMC_TEST_CONFIG = {
   apiKey: 'test-cmc-key',
   baseUrl: 'https://cmc.test',
@@ -57,5 +60,5 @@ export function createTestApp(): TestApp {
   const db = createTestDatabase();
   const marketData = new CoinMarketCapClient(CMC_TEST_CONFIG);
 
-  return { app: createApp({ db, marketData }), db, cmcGet };
+  return { app: createApp({ db, marketData, apiKey: TEST_API_KEY }), db, cmcGet };
 }
