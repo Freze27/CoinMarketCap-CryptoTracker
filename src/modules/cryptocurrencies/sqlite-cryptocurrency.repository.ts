@@ -12,10 +12,11 @@ interface CryptocurrencyRow {
   id: string;
   symbol: string;
   name: string;
+  cmc_id: number;
   updated_at: string;
 }
 
-const COLUMNS = 'id, symbol, name, updated_at';
+const COLUMNS = 'id, symbol, name, cmc_id, updated_at';
 const SQLITE_CONSTRAINT_UNIQUE = 2067;
 
 function toCryptocurrency(row: CryptocurrencyRow): Cryptocurrency {
@@ -23,6 +24,7 @@ function toCryptocurrency(row: CryptocurrencyRow): Cryptocurrency {
     id: row.id,
     symbol: row.symbol,
     name: row.name,
+    cmcId: row.cmc_id,
     updatedAt: row.updated_at,
   };
 }
@@ -34,7 +36,6 @@ function isUniqueViolation(error: unknown): boolean {
 export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository {
   private readonly findAllStatement;
   private readonly findByIdStatement;
-  private readonly findBySymbolStatement;
   private readonly createStatement;
   private readonly updateStatement;
   private readonly deleteStatement;
@@ -42,10 +43,9 @@ export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository 
   constructor(db: Database) {
     this.findAllStatement = db.prepare(`SELECT ${COLUMNS} FROM cryptocurrencies ORDER BY symbol`);
     this.findByIdStatement = db.prepare(`SELECT ${COLUMNS} FROM cryptocurrencies WHERE id = ?`);
-    this.findBySymbolStatement = db.prepare(`SELECT ${COLUMNS} FROM cryptocurrencies WHERE symbol = ?`);
     this.createStatement = db.prepare(`
-      INSERT INTO cryptocurrencies (id, symbol, name, updated_at)
-      VALUES (:id, :symbol, :name, :updatedAt)
+      INSERT INTO cryptocurrencies (id, symbol, name, cmc_id, updated_at)
+      VALUES (:id, :symbol, :name, :cmcId, :updatedAt)
       RETURNING ${COLUMNS}
     `);
     this.updateStatement = db.prepare(`
@@ -71,13 +71,6 @@ export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository 
     });
   }
 
-  async findBySymbol(symbol: string): Promise<Cryptocurrency | null> {
-    return withDatabaseErrors('cryptocurrencies.findBySymbol', () => {
-      const row = this.findBySymbolStatement.get(symbol) as unknown as CryptocurrencyRow | undefined;
-      return row ? toCryptocurrency(row) : null;
-    });
-  }
-
   async create(data: CreateCryptocurrencyData): Promise<Cryptocurrency> {
     return withDatabaseErrors('cryptocurrencies.create', () => {
       try {
@@ -85,6 +78,7 @@ export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository 
           id: randomUUID(),
           symbol: data.symbol,
           name: data.name,
+          cmcId: data.cmcId,
           updatedAt: new Date().toISOString(),
         }) as unknown as CryptocurrencyRow;
 

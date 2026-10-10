@@ -1,4 +1,5 @@
 import { createApp } from './app';
+import { CoinMarketCapClient } from './clients/coinmarketcap.client';
 import { loadConfig } from './config';
 import { openDatabase } from './db/database';
 import { runMigrations } from './db/migrate';
@@ -8,7 +9,8 @@ function start(): void {
     const config = loadConfig();
     const db = openDatabase(config.databasePath);
     runMigrations(db);
-    const app = createApp({ db });
+    const marketData = new CoinMarketCapClient(config.coinMarketCap);
+    const app = createApp({ db, marketData });
 
     app.listen(config.port, (error) => {
       if (error) {
