@@ -21,8 +21,8 @@ describe('SqlitePriceHistoryRepository', () => {
     db = createTestDatabase();
     cryptocurrencies = new SqliteCryptocurrencyRepository(db);
     prices = new SqlitePriceHistoryRepository(db);
-    bitcoinId = (await cryptocurrencies.create({ symbol: 'BTC', name: 'Bitcoin' })).id;
-    ethereumId = (await cryptocurrencies.create({ symbol: 'ETH', name: 'Ethereum' })).id;
+    bitcoinId = (await cryptocurrencies.create({ symbol: 'BTC', name: 'Bitcoin', cmcId: 1 })).id;
+    ethereumId = (await cryptocurrencies.create({ symbol: 'ETH', name: 'Ethereum', cmcId: 1027 })).id;
   });
 
   afterEach(() => {
@@ -68,7 +68,7 @@ describe('SqlitePriceHistoryRepository', () => {
     });
 
     it('AddMany_ShouldSkipItAndSaveTheRest_WhenOneCryptocurrencyIsDeleted', async () => {
-      const solana = await cryptocurrencies.create({ symbol: 'SOL', name: 'Solana' });
+      const solana = await cryptocurrencies.create({ symbol: 'SOL', name: 'Solana', cmcId: 5426 });
       await cryptocurrencies.delete(solana.id);
 
       const saved = await prices.addMany([
@@ -122,7 +122,7 @@ describe('SqlitePriceHistoryRepository', () => {
 
   describe('findLatestForAll', () => {
     it('FindLatestForAll_ShouldReturnMostRecentPriceOfEach_WhenSomeCryptocurrenciesHavePrices', async () => {
-      await cryptocurrencies.create({ symbol: 'SOL', name: 'Solana' });
+      await cryptocurrencies.create({ symbol: 'SOL', name: 'Solana', cmcId: 5426 });
       await prices.addMany([
         { cryptocurrencyId: bitcoinId, price: 1, fetchedAt: DAY_1 },
         { cryptocurrencyId: bitcoinId, price: 2, fetchedAt: DAY_3 },
@@ -181,7 +181,7 @@ describe('SqlitePriceHistoryRepository', () => {
     });
 
     it('FindHistory_ShouldReturnEmptyList_WhenCryptocurrencyHasNoPrices', async () => {
-      const solana = await cryptocurrencies.create({ symbol: 'SOL', name: 'Solana' });
+      const solana = await cryptocurrencies.create({ symbol: 'SOL', name: 'Solana', cmcId: 5426 });
 
       await expect(prices.findHistory(solana.id, { limit: 10, offset: 0 })).resolves.toEqual([]);
     });

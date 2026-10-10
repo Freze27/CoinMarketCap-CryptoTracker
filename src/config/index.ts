@@ -1,32 +1,47 @@
+export interface CoinMarketCapConfig {
+  apiKey: string;
+  baseUrl: string;
+  timeoutMs: number;
+  maxRetries: number;
+  retryDelayMs: number;
+}
+
 export interface AppConfig {
   port: number;
   databasePath: string;
+  coinMarketCap: CoinMarketCapConfig;
 }
 
-const DEFAULT_PORT = 3000;
 const DEFAULT_DATABASE_PATH = './data/app.db';
+const DEFAULT_CMC_BASE_URL = 'https://pro-api.coinmarketcap.com';
 
-function readPort(value: string | undefined): number {
+function readInteger(
+  name: string,
+  value: string | undefined,
+  defaultValue: number,
+  min: number,
+  max: number,
+): number {
   if (value === undefined || value.trim() === '') {
-    return DEFAULT_PORT;
+    return defaultValue;
   }
 
-  const port = Number(value);
+  const parsed = Number(value);
 
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`PORT must be an integer between 1 and 65535, received "${value}"`);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}, received "${value}"`);
   }
 
-  return port;
+  return parsed;
 }
 
-function readDatabasePath(value: string | undefined): string {
-  if (value === undefined) {
-    return DEFAULT_DATABASE_PATH;
+function readString(name: string, value: string | undefined, defaultValue?: string): string {
+  if (value === undefined && defaultValue !== undefined) {
+    return defaultValue;
   }
 
-  if (value.trim() === '') {
-    throw new Error('DATABASE_PATH must not be empty');
+  if (value === undefined || value.trim() === '') {
+    throw new Error(`${name} must not be empty`);
   }
 
   return value.trim();
@@ -34,7 +49,14 @@ function readDatabasePath(value: string | undefined): string {
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
-    port: readPort(env.PORT),
-    databasePath: readDatabasePath(env.DATABASE_PATH),
+    port: readInteger('PORT', env.PORT, 3000, 1, 65535),
+    databasePath: readString('DATABASE_PATH', env.DATABASE_PATH, DEFAULT_DATABASE_PATH),
+    coinMarketCap: {
+      apiKey: readString('CMC_API_KEY', env.CMC_API_KEY),
+      baseUrl: readString('CMC_BASE_URL', env.CMC_BASE_URL, DEFAULT_CMC_BASE_URL),
+      timeoutMs: readInteger('CMC_TIMEOUT_MS', env.CMC_TIMEOUT_MS, 10000, 1, 60000),
+      maxRetries: readInteger('CMC_MAX_RETRIES', env.CMC_MAX_RETRIES, 2, 0, 5),
+      retryDelayMs: readInteger('CMC_RETRY_DELAY_MS', env.CMC_RETRY_DELAY_MS, 500, 0, 10000),
+    },
   };
 }

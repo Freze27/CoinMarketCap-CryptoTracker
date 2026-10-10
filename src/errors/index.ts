@@ -17,6 +17,32 @@ export class AppError extends Error {
   }
 }
 
+export interface FieldError {
+  field: string;
+  message: string;
+}
+
+export class ValidationError extends AppError {
+  readonly details: FieldError[];
+
+  constructor(details: FieldError[]) {
+    super('Request validation failed', 400);
+    this.details = details;
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, 404, { context });
+  }
+}
+
+export class CryptocurrencyNotFoundError extends NotFoundError {
+  constructor(id: string) {
+    super(`Cryptocurrency with id "${id}" not found`, { id });
+  }
+}
+
 export class ConflictError extends AppError {
   constructor(message: string, context?: Record<string, unknown>) {
     super(message, 409, { context });
@@ -26,5 +52,11 @@ export class ConflictError extends AppError {
 export class DatabaseError extends AppError {
   constructor(operation: string, cause: unknown) {
     super(`Database operation failed: ${operation}`, 500, { context: { operation }, cause });
+  }
+}
+
+export class ExternalApiError extends AppError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, 503, { context });
   }
 }
