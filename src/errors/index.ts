@@ -31,6 +31,12 @@ export class ValidationError extends AppError {
   }
 }
 
+export class UnauthorizedError extends AppError {
+  constructor() {
+    super('Valid Bearer token is required', 401);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message: string, context?: Record<string, unknown>) {
     super(message, 404, { context });
