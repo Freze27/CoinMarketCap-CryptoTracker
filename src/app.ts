@@ -1,38 +1,23 @@
 import express, { type Express } from 'express';
-import type { MarketDataProvider } from './clients/market-data-provider';
 import type { Database } from './db/database';
 import { createAuthMiddleware } from './middlewares/auth';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler';
 import { CryptocurrencyController } from './modules/cryptocurrencies/cryptocurrency.controller';
 import { createCryptocurrencyRouter } from './modules/cryptocurrencies/cryptocurrency.routes';
-import { CryptocurrencyService } from './modules/cryptocurrencies/cryptocurrency.service';
-import { SqliteCryptocurrencyRepository } from './modules/cryptocurrencies/sqlite-cryptocurrency.repository';
 import { createHealthRouter } from './modules/health/health.routes';
 import { PriceController } from './modules/prices/price.controller';
 import { createPriceRouter } from './modules/prices/price.routes';
-import { PriceService } from './modules/prices/price.service';
-import { SqlitePriceHistoryRepository } from './modules/prices/sqlite-price-history.repository';
+import type { Services } from './services';
 
 interface AppDependencies {
   db: Database;
-  marketData: MarketDataProvider;
+  services: Services;
   apiKey: string;
-  priceCacheTtlMs: number;
 }
 
-export function createApp({ db, marketData, apiKey, priceCacheTtlMs }: AppDependencies): Express {
-  const cryptocurrencyRepository = new SqliteCryptocurrencyRepository(db);
-  const cryptocurrencyService = new CryptocurrencyService(cryptocurrencyRepository, marketData);
-  const cryptocurrencyController = new CryptocurrencyController(cryptocurrencyService);
-
-  const priceHistoryRepository = new SqlitePriceHistoryRepository(db);
-  const priceService = new PriceService(
-    cryptocurrencyRepository,
-    priceHistoryRepository,
-    marketData,
-    priceCacheTtlMs,
-  );
-  const priceController = new PriceController(priceService);
+export function createApp({ db, services, apiKey }: AppDependencies): Express {
+  const cryptocurrencyController = new CryptocurrencyController(services.cryptocurrencyService);
+  const priceController = new PriceController(services.priceService);
 
   const app = express();
 
