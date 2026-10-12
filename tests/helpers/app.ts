@@ -3,6 +3,7 @@ import type { Express } from 'express';
 import { createApp } from '../../src/app';
 import { CoinMarketCapClient } from '../../src/clients/coinmarketcap.client';
 import type { Database } from '../../src/db/database';
+import { createServices, type Services } from '../../src/services';
 import { createTestDatabase } from './database';
 
 jest.mock('axios');
@@ -30,6 +31,7 @@ export interface TestApp {
   app: Express;
   db: Database;
   cmcGet: jest.Mock;
+  services: Services;
 }
 
 export function cmcMapResponse(coins: unknown): { data: unknown } {
@@ -77,18 +79,17 @@ export function quotesCalls(cmcGet: jest.Mock): unknown[][] {
   return cmcGet.mock.calls.filter(([path]) => path === CMC_QUOTES_PATH);
 }
 
-export function createTestApp(options: { priceCacheTtlMs?: number } = {}): TestApp {
+export function createTestApp(options: { priceCacheTtlMs?: number; cmcMaxRetries?: number } = {}): TestApp {
   const cmcGet = createCmcGetMock();
   jest.mocked(axios.create).mockReturnValue({ get: cmcGet } as never);
 
   const db = createTestDatabase();
-  const marketData = new CoinMarketCapClient(CMC_TEST_CONFIG);
-  const app = createApp({
-    db,
-    marketData,
-    apiKey: TEST_API_KEY,
-    priceCacheTtlMs: options.priceCacheTtlMs ?? 60_000,
+  const marketData = new CoinMarketCapClient({
+    ...CMC_TEST_CONFIG,
+    maxRetries: options.cmcMaxRetries ?? CMC_TEST_CONFIG.maxRetries,
   });
+  const services = createServices({ db, marketData, priceCacheTtlMs: options.priceCacheTtlMs ?? 60_000 });
+  const app = createApp({ db, services, apiKey: TEST_API_KEY });
 
-  return { app, db, cmcGet };
+  return { app, db, cmcGet, services };
 }

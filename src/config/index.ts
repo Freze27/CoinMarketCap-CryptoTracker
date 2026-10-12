@@ -6,11 +6,18 @@ export interface CoinMarketCapConfig {
   retryDelayMs: number;
 }
 
+export interface PriceSyncConfig {
+  enabled: boolean;
+  intervalMs: number;
+}
+
 export interface AppConfig {
   port: number;
   databasePath: string;
   apiKey: string;
   priceCacheTtlMs: number;
+  priceSync: PriceSyncConfig;
+  shutdownTimeoutMs: number;
   coinMarketCap: CoinMarketCapConfig;
 }
 
@@ -51,12 +58,29 @@ function readString(name: string, value: string | undefined, defaultValue?: stri
   return value.trim();
 }
 
+function readBoolean(name: string, value: string | undefined, defaultValue: boolean): boolean {
+  if (value === undefined || value.trim() === '') {
+    return defaultValue;
+  }
+
+  if (value !== 'true' && value !== 'false') {
+    throw new Error(`${name} must be "true" or "false", received "${value}"`);
+  }
+
+  return value === 'true';
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: readInteger('PORT', env.PORT, 3000, 1, 65535),
     databasePath: readString('DATABASE_PATH', env.DATABASE_PATH, DEFAULT_DATABASE_PATH),
     apiKey: readString('API_KEY', env.API_KEY),
     priceCacheTtlMs: readInteger('PRICE_CACHE_TTL_MS', env.PRICE_CACHE_TTL_MS, 60000, 0, 3600000),
+    priceSync: {
+      enabled: readBoolean('PRICE_SYNC_ENABLED', env.PRICE_SYNC_ENABLED, true),
+      intervalMs: readInteger('PRICE_SYNC_INTERVAL_MS', env.PRICE_SYNC_INTERVAL_MS, 300000, 1000, 86400000),
+    },
+    shutdownTimeoutMs: readInteger('SHUTDOWN_TIMEOUT_MS', env.SHUTDOWN_TIMEOUT_MS, 10000, 1000, 60000),
     coinMarketCap: {
       apiKey: readString('CMC_API_KEY', env.CMC_API_KEY),
       baseUrl: readString('CMC_BASE_URL', env.CMC_BASE_URL, DEFAULT_CMC_BASE_URL),
