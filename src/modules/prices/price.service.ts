@@ -1,5 +1,6 @@
 import type { MarketDataProvider } from '../../clients/market-data-provider';
 import { CryptocurrencyNotFoundError, ExternalApiError } from '../../errors';
+import type { Logger } from '../../logger/logger';
 import type { Cryptocurrency, CryptocurrencyRepository } from '../cryptocurrencies/cryptocurrency.repository';
 import type { PriceHistoryFilter, PriceHistoryRepository, PriceRecord } from './price-history.repository';
 
@@ -24,6 +25,7 @@ export class PriceService {
     private readonly priceHistory: PriceHistoryRepository,
     private readonly marketData: MarketDataProvider,
     private readonly cacheTtlMs: number,
+    private readonly logger: Logger,
   ) {}
 
   async getLatestPrices(): Promise<LatestPrices> {
@@ -40,7 +42,7 @@ export class PriceService {
           throw error;
         }
 
-        console.error('Failed to refresh prices, serving stored prices:', error);
+        this.logger.warn('Failed to refresh prices, serving stored prices', { error });
         stale = true;
       }
     }
@@ -66,7 +68,10 @@ export class PriceService {
       return price === undefined ? [] : [{ cryptocurrencyId: item.id, price, fetchedAt }];
     });
 
-    return this.priceHistory.addMany(records);
+    const savedPrices = await this.priceHistory.addMany(records);
+    this.logger.info('Prices refreshed', { tracked: cryptocurrencies.length, savedPrices });
+
+    return savedPrices;
   }
 
   async getHistory(cryptocurrencyId: string, filter: PriceHistoryFilter): Promise<PriceRecord[]> {

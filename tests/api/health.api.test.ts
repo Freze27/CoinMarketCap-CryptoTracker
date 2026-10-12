@@ -13,15 +13,14 @@ describe('GET /health', () => {
   });
 
   it('Health_ShouldReturn503_WhenDatabaseIsUnavailable', async () => {
-    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { app, db } = createTestApp();
+    const { app, db, logs } = createTestApp();
     db.close();
 
     const response = await request(app).get('/health');
 
     expect(response.status).toBe(503);
     expect(response.body).toEqual({ status: 'error', database: 'unavailable' });
-    consoleError.mockRestore();
+    expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Database health check failed' }));
   });
 });
 

@@ -1,3 +1,5 @@
+import { LOG_LEVELS, type LogLevel } from '../logger/logger';
+
 export interface CoinMarketCapConfig {
   apiKey: string;
   baseUrl: string;
@@ -13,6 +15,7 @@ export interface PriceSyncConfig {
 
 export interface AppConfig {
   port: number;
+  logLevel: LogLevel | 'silent';
   databasePath: string;
   apiKey: string;
   priceCacheTtlMs: number;
@@ -70,9 +73,24 @@ function readBoolean(name: string, value: string | undefined, defaultValue: bool
   return value === 'true';
 }
 
+function readLogLevel(value: string | undefined): LogLevel | 'silent' {
+  if (value === undefined || value.trim() === '') {
+    return 'info';
+  }
+
+  const allowed: string[] = [...LOG_LEVELS, 'silent'];
+
+  if (!allowed.includes(value)) {
+    throw new Error(`LOG_LEVEL must be one of ${allowed.join(', ')}, received "${value}"`);
+  }
+
+  return value as LogLevel | 'silent';
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: readInteger('PORT', env.PORT, 3000, 1, 65535),
+    logLevel: readLogLevel(env.LOG_LEVEL),
     databasePath: readString('DATABASE_PATH', env.DATABASE_PATH, DEFAULT_DATABASE_PATH),
     apiKey: readString('API_KEY', env.API_KEY),
     priceCacheTtlMs: readInteger('PRICE_CACHE_TTL_MS', env.PRICE_CACHE_TTL_MS, 60000, 0, 3600000),

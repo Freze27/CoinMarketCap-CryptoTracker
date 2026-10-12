@@ -1,6 +1,7 @@
 import type { Server } from 'node:http';
 import type { Database } from './db/database';
 import type { TaskScheduler } from './jobs/task-scheduler';
+import type { Logger } from './logger/logger';
 
 const SHUTDOWN_SIGNALS = ['SIGINT', 'SIGTERM'] as const;
 
@@ -8,6 +9,7 @@ interface ShutdownDependencies {
   server: Server;
   scheduler: TaskScheduler;
   db: Database;
+  logger: Logger;
   timeoutMs: number;
   processRef?: Pick<NodeJS.Process, 'on' | 'exit'>;
 }
@@ -23,6 +25,7 @@ export function registerGracefulShutdown({
   server,
   scheduler,
   db,
+  logger,
   timeoutMs,
   processRef = process,
 }: ShutdownDependencies): void {
@@ -34,10 +37,10 @@ export function registerGracefulShutdown({
     }
 
     shuttingDown = true;
-    console.log(`Received ${signal}, shutting down`);
+    logger.info('Shutdown signal received', { signal });
 
     const forceExit = setTimeout(() => {
-      console.error(`Shutdown did not finish in ${timeoutMs} ms, forcing exit`);
+      logger.error('Shutdown did not finish in time, forcing exit', { timeoutMs });
       processRef.exit(1);
     }, timeoutMs);
     forceExit.unref();
@@ -46,11 +49,11 @@ export function registerGracefulShutdown({
       await Promise.all([scheduler.stop(), closeServer(server)]);
       db.close();
       clearTimeout(forceExit);
-      console.log('Shutdown completed');
+      logger.info('Shutdown completed');
       processRef.exit(0);
     } catch (error) {
       clearTimeout(forceExit);
-      console.error('Shutdown failed:', error);
+      logger.error('Shutdown failed', { error });
       processRef.exit(1);
     }
   };

@@ -1,4 +1,5 @@
 import type { MarketDataProvider } from '../../clients/market-data-provider';
+import type { Logger } from '../../logger/logger';
 import { CryptocurrencyAlreadyExistsError, CryptocurrencyNotFoundError, ValidationError } from '../../errors';
 import type {
   Cryptocurrency,
@@ -15,6 +16,7 @@ export class CryptocurrencyService {
   constructor(
     private readonly repository: CryptocurrencyRepository,
     private readonly marketData: MarketDataProvider,
+    private readonly logger: Logger,
   ) {}
 
   async getAll(): Promise<Cryptocurrency[]> {
@@ -44,7 +46,10 @@ export class CryptocurrencyService {
       throw new ValidationError([{ field: 'symbol', message: 'is not listed on CoinMarketCap' }]);
     }
 
-    return this.repository.create({ symbol, name: input.name, cmcId: coin.cmcId });
+    const cryptocurrency = await this.repository.create({ symbol, name: input.name, cmcId: coin.cmcId });
+    this.logger.info('Cryptocurrency added to tracking', { id: cryptocurrency.id, symbol, cmcId: coin.cmcId });
+
+    return cryptocurrency;
   }
 
   async update(id: string, data: UpdateCryptocurrencyData): Promise<Cryptocurrency> {
@@ -53,6 +58,8 @@ export class CryptocurrencyService {
     if (!cryptocurrency) {
       throw new CryptocurrencyNotFoundError(id);
     }
+
+    this.logger.info('Cryptocurrency renamed', { id, name: cryptocurrency.name });
 
     return cryptocurrency;
   }
@@ -63,5 +70,7 @@ export class CryptocurrencyService {
     if (!deleted) {
       throw new CryptocurrencyNotFoundError(id);
     }
+
+    this.logger.info('Cryptocurrency removed from tracking', { id });
   }
 }

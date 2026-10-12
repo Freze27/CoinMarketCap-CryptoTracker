@@ -3,8 +3,10 @@ import type { Express } from 'express';
 import { createApp } from '../../src/app';
 import { CoinMarketCapClient } from '../../src/clients/coinmarketcap.client';
 import type { Database } from '../../src/db/database';
+import type { Logger } from '../../src/logger/logger';
 import { createServices, type Services } from '../../src/services';
 import { createTestDatabase } from './database';
+import { createMemoryLogger, type LogEntry } from './logger';
 
 jest.mock('axios');
 
@@ -32,6 +34,8 @@ export interface TestApp {
   db: Database;
   cmcGet: jest.Mock;
   services: Services;
+  logger: Logger;
+  logs: LogEntry[];
 }
 
 export function cmcMapResponse(coins: unknown): { data: unknown } {
@@ -83,13 +87,19 @@ export function createTestApp(options: { priceCacheTtlMs?: number; cmcMaxRetries
   const cmcGet = createCmcGetMock();
   jest.mocked(axios.create).mockReturnValue({ get: cmcGet } as never);
 
+  const { logger, logs } = createMemoryLogger();
   const db = createTestDatabase();
-  const marketData = new CoinMarketCapClient({
-    ...CMC_TEST_CONFIG,
-    maxRetries: options.cmcMaxRetries ?? CMC_TEST_CONFIG.maxRetries,
+  const marketData = new CoinMarketCapClient(
+    { ...CMC_TEST_CONFIG, maxRetries: options.cmcMaxRetries ?? CMC_TEST_CONFIG.maxRetries },
+    logger,
+  );
+  const services = createServices({
+    db,
+    marketData,
+    priceCacheTtlMs: options.priceCacheTtlMs ?? 60_000,
+    logger,
   });
-  const services = createServices({ db, marketData, priceCacheTtlMs: options.priceCacheTtlMs ?? 60_000 });
-  const app = createApp({ db, services, apiKey: TEST_API_KEY });
+  const app = createApp({ db, services, apiKey: TEST_API_KEY, logger });
 
-  return { app, db, cmcGet, services };
+  return { app, db, cmcGet, services, logger, logs };
 }

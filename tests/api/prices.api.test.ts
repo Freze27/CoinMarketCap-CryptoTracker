@@ -3,6 +3,7 @@ import type { Express } from 'express';
 import request from 'supertest';
 import type { Database } from '../../src/db/database';
 import { SqlitePriceHistoryRepository } from '../../src/modules/prices/sqlite-price-history.repository';
+import type { LogEntry } from '../helpers/logger';
 import {
   AUTH_HEADER,
   CMC_QUOTES_PATH,
@@ -23,14 +24,14 @@ describe('Prices API', () => {
   let app: Express;
   let db: Database;
   let cmcGet: jest.Mock;
-  let consoleError: jest.SpyInstance;
+  let logs: LogEntry[];
 
   function api(): ReturnType<typeof request.agent> {
     return request.agent(app).set('Authorization', AUTH_HEADER);
   }
 
   function useApp(options?: { priceCacheTtlMs?: number }): void {
-    ({ app, db, cmcGet } = createTestApp(options));
+    ({ app, db, cmcGet, logs } = createTestApp(options));
   }
 
   async function track(symbol: string, name: string): Promise<string> {
@@ -45,12 +46,10 @@ describe('Prices API', () => {
   }
 
   beforeEach(() => {
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
     useApp();
   });
 
   afterEach(() => {
-    consoleError.mockRestore();
     db.close();
   });
 
@@ -189,7 +188,10 @@ describe('Prices API', () => {
         currency: 'USD',
         stale: true,
       });
-      expect(JSON.stringify(consoleError.mock.calls)).not.toContain('test-cmc-key');
+      expect(logs).toContainEqual(
+        expect.objectContaining({ level: 'warn', message: 'Failed to refresh prices, serving stored prices' }),
+      );
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
     });
 
     it('GetLatest_ShouldReturn503_WhenCoinMarketCapIsUnavailableAndNoPricesAreStored', async () => {

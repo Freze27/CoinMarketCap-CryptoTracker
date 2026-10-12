@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { CoinMarketCapClient } from '../../src/clients/coinmarketcap.client';
 import { ExternalApiError } from '../../src/errors';
+import { createLogger } from '../../src/logger/logger';
 import {
   CMC_TEST_CONFIG,
   cmcHttpError,
@@ -18,7 +19,7 @@ describe('CoinMarketCapClient', () => {
   beforeEach(() => {
     get = jest.fn();
     jest.mocked(axios.create).mockReset().mockReturnValue({ get } as never);
-    client = new CoinMarketCapClient(CMC_TEST_CONFIG);
+    client = new CoinMarketCapClient(CMC_TEST_CONFIG, createLogger('silent'));
   });
 
   it('Constructor_ShouldConfigureBaseUrlTimeoutAndApiKeyHeader_WhenCreated', () => {
