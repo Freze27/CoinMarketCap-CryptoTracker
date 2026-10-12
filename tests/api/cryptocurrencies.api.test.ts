@@ -169,13 +169,27 @@ describe('Cryptocurrencies API', () => {
       consoleError.mockRestore();
     });
 
-    it('Create_ShouldReturn409_WhenSymbolAlreadyExists', async () => {
+    it('Create_ShouldReturn409WithoutCallingCoinMarketCap_WhenSymbolAlreadyExists', async () => {
       await createCryptocurrency('BTC', 'Bitcoin');
+      cmcGet.mockClear();
 
       const response = await api().post('/api/cryptocurrencies').send({ symbol: 'btc', name: 'Bitcoin 2' });
 
       expect(response.status).toBe(409);
       expect(response.body).toEqual({ error: { message: 'Cryptocurrency with symbol "BTC" already exists' } });
+      expect(cmcGet).not.toHaveBeenCalled();
+    });
+
+    it('Create_ShouldReturn409_WhenAnotherSymbolResolvesToAlreadyTrackedCoin', async () => {
+      await createCryptocurrency('BTC', 'Bitcoin');
+      cmcGet.mockResolvedValueOnce(
+        cmcMapResponse([{ id: 1, name: 'Bitcoin', symbol: 'XBT', rank: 1, is_active: 1 }]),
+      );
+
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'XBT', name: 'Bitcoin alias' });
+
+      expect(response.status).toBe(409);
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [{ symbol: 'BTC' }] } });
     });
 
     it.each([

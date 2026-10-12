@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { withDatabaseErrors, type Database } from '../../db/database';
-import { ConflictError } from '../../errors';
+import { CryptocurrencyAlreadyExistsError } from '../../errors';
 import type {
   CreateCryptocurrencyData,
   Cryptocurrency,
@@ -36,6 +36,7 @@ function isUniqueViolation(error: unknown): boolean {
 export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository {
   private readonly findAllStatement;
   private readonly findByIdStatement;
+  private readonly findBySymbolStatement;
   private readonly createStatement;
   private readonly updateStatement;
   private readonly deleteStatement;
@@ -43,6 +44,7 @@ export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository 
   constructor(db: Database) {
     this.findAllStatement = db.prepare(`SELECT ${COLUMNS} FROM cryptocurrencies ORDER BY symbol`);
     this.findByIdStatement = db.prepare(`SELECT ${COLUMNS} FROM cryptocurrencies WHERE id = ?`);
+    this.findBySymbolStatement = db.prepare(`SELECT ${COLUMNS} FROM cryptocurrencies WHERE symbol = ?`);
     this.createStatement = db.prepare(`
       INSERT INTO cryptocurrencies (id, symbol, name, cmc_id, updated_at)
       VALUES (:id, :symbol, :name, :cmcId, :updatedAt)
@@ -71,6 +73,13 @@ export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository 
     });
   }
 
+  async findBySymbol(symbol: string): Promise<Cryptocurrency | null> {
+    return withDatabaseErrors('cryptocurrencies.findBySymbol', () => {
+      const row = this.findBySymbolStatement.get(symbol) as unknown as CryptocurrencyRow | undefined;
+      return row ? toCryptocurrency(row) : null;
+    });
+  }
+
   async create(data: CreateCryptocurrencyData): Promise<Cryptocurrency> {
     return withDatabaseErrors('cryptocurrencies.create', () => {
       try {
@@ -84,7 +93,7 @@ export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository 
 
         return toCryptocurrency(row);
       } catch (error) {
-        throw this.toConflictError(error, data.symbol);
+        throw isUniqueViolation(error) ? new CryptocurrencyAlreadyExistsError(data.symbol) : error;
       }
     });
   }
@@ -103,13 +112,5 @@ export class SqliteCryptocurrencyRepository implements CryptocurrencyRepository 
 
   async delete(id: string): Promise<boolean> {
     return withDatabaseErrors('cryptocurrencies.delete', () => this.deleteStatement.run(id).changes > 0);
-  }
-
-  private toConflictError(error: unknown, symbol: string): unknown {
-    if (isUniqueViolation(error)) {
-      return new ConflictError(`Cryptocurrency with symbol "${symbol}" already exists`, { symbol });
-    }
-
-    return error;
   }
 }

@@ -10,7 +10,12 @@ function start(): void {
     const db = openDatabase(config.databasePath);
     runMigrations(db);
     const marketData = new CoinMarketCapClient(config.coinMarketCap);
-    const app = createApp({ db, marketData, apiKey: config.apiKey });
+    const app = createApp({
+      db,
+      marketData,
+      apiKey: config.apiKey,
+      priceCacheTtlMs: config.priceCacheTtlMs,
+    });
 
     app.listen(config.port, (error) => {
       if (error) {

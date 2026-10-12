@@ -10,8 +10,11 @@ export interface AppConfig {
   port: number;
   databasePath: string;
   apiKey: string;
+  priceCacheTtlMs: number;
   coinMarketCap: CoinMarketCapConfig;
 }
+
+export const PRICE_CURRENCY = 'USD';
 
 const DEFAULT_DATABASE_PATH = './data/app.db';
 const DEFAULT_CMC_BASE_URL = 'https://pro-api.coinmarketcap.com';
@@ -53,6 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port: readInteger('PORT', env.PORT, 3000, 1, 65535),
     databasePath: readString('DATABASE_PATH', env.DATABASE_PATH, DEFAULT_DATABASE_PATH),
     apiKey: readString('API_KEY', env.API_KEY),
+    priceCacheTtlMs: readInteger('PRICE_CACHE_TTL_MS', env.PRICE_CACHE_TTL_MS, 60000, 0, 3600000),
     coinMarketCap: {
       apiKey: readString('CMC_API_KEY', env.CMC_API_KEY),
       baseUrl: readString('CMC_BASE_URL', env.CMC_BASE_URL, DEFAULT_CMC_BASE_URL),

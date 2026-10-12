@@ -81,6 +81,21 @@ describe('SqliteCryptocurrencyRepository', () => {
     });
   });
 
+  describe('findBySymbol', () => {
+    it('FindBySymbol_ShouldReturnCryptocurrency_WhenSymbolExists', async () => {
+      await repository.create({ symbol: 'BTC', name: 'Bitcoin', cmcId: 1 });
+      const ethereum = await repository.create({ symbol: 'ETH', name: 'Ethereum', cmcId: 1027 });
+
+      await expect(repository.findBySymbol('ETH')).resolves.toEqual(ethereum);
+    });
+
+    it('FindBySymbol_ShouldReturnNull_WhenSymbolDoesNotExist', async () => {
+      await repository.create({ symbol: 'BTC', name: 'Bitcoin', cmcId: 1 });
+
+      await expect(repository.findBySymbol('DOGE')).resolves.toBeNull();
+    });
+  });
+
   describe('update', () => {
     it('Update_ShouldChangeNameAndKeepSymbol_WhenIdExists', async () => {
       const created = await repository.create({ symbol: 'BTC', name: 'Bitcoin', cmcId: 1 });

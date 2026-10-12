@@ -8,6 +8,7 @@ describe('loadConfig', () => {
       port: 3000,
       databasePath: './data/app.db',
       apiKey: 'api-key',
+      priceCacheTtlMs: 60000,
       coinMarketCap: {
         apiKey: 'key',
         baseUrl: 'https://pro-api.coinmarketcap.com',
@@ -23,6 +24,7 @@ describe('loadConfig', () => {
       PORT: '8080',
       DATABASE_PATH: './storage/prices.db',
       API_KEY: ' my-api-key ',
+      PRICE_CACHE_TTL_MS: '0',
       CMC_API_KEY: ' secret ',
       CMC_BASE_URL: 'https://sandbox-api.coinmarketcap.com',
       CMC_TIMEOUT_MS: '3000',
@@ -34,6 +36,7 @@ describe('loadConfig', () => {
       port: 8080,
       databasePath: './storage/prices.db',
       apiKey: 'my-api-key',
+      priceCacheTtlMs: 0,
       coinMarketCap: {
         apiKey: 'secret',
         baseUrl: 'https://sandbox-api.coinmarketcap.com',
@@ -61,6 +64,7 @@ describe('loadConfig', () => {
   });
 
   it.each([
+    ['PRICE_CACHE_TTL_MS', '-1'],
     ['CMC_TIMEOUT_MS', '0'],
     ['CMC_MAX_RETRIES', '6'],
     ['CMC_RETRY_DELAY_MS', '-5'],

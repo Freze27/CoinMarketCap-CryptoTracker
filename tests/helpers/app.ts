@@ -23,6 +23,9 @@ const KNOWN_COINS: Record<string, { id: number; name: string }> = {
   ETH: { id: 1027, name: 'Ethereum' },
 };
 
+export const CMC_QUOTES_PATH = '/v3/cryptocurrency/quotes/latest';
+export const KNOWN_PRICES: Record<number, number> = { 1: 65000.5, 1027: 3200.25 };
+
 export interface TestApp {
   app: Express;
   db: Database;
@@ -41,24 +44,51 @@ export function cmcNetworkError(code: string): object {
   return { code };
 }
 
+export function cmcQuote(id: number, price: unknown): object {
+  return { id, quote: [{ id: 2781, symbol: 'USD', price, last_updated: '2026-10-09T12:39:02.000Z' }] };
+}
+
+export function cmcQuotesResponse(prices: Record<number, unknown>): { data: unknown } {
+  const coins = Object.entries(prices).map(([id, price]) => cmcQuote(Number(id), price));
+
+  return { data: { status: { error_code: '0' }, data: coins } };
+}
+
 export function createCmcGetMock(): jest.Mock {
-  return jest.fn(async (_path: string, options: { params: { symbol: string } }) => {
-    const coin = KNOWN_COINS[options.params.symbol];
+  return jest.fn(async (path: string, options: { params: { symbol?: string; id?: string } }) => {
+    if (path === CMC_QUOTES_PATH) {
+      const ids = (options.params.id ?? '').split(',').map(Number);
+
+      return cmcQuotesResponse(Object.fromEntries(ids.map((id) => [id, KNOWN_PRICES[id]])));
+    }
+
+    const symbol = options.params.symbol ?? '';
+    const coin = KNOWN_COINS[symbol];
 
     if (!coin) {
       throw cmcHttpError(400);
     }
 
-    return cmcMapResponse([{ ...coin, symbol: options.params.symbol, rank: 1, is_active: 1 }]);
+    return cmcMapResponse([{ ...coin, symbol, rank: 1, is_active: 1 }]);
   });
 }
 
-export function createTestApp(): TestApp {
+export function quotesCalls(cmcGet: jest.Mock): unknown[][] {
+  return cmcGet.mock.calls.filter(([path]) => path === CMC_QUOTES_PATH);
+}
+
+export function createTestApp(options: { priceCacheTtlMs?: number } = {}): TestApp {
   const cmcGet = createCmcGetMock();
   jest.mocked(axios.create).mockReturnValue({ get: cmcGet } as never);
 
   const db = createTestDatabase();
   const marketData = new CoinMarketCapClient(CMC_TEST_CONFIG);
+  const app = createApp({
+    db,
+    marketData,
+    apiKey: TEST_API_KEY,
+    priceCacheTtlMs: options.priceCacheTtlMs ?? 60_000,
+  });
 
-  return { app: createApp({ db, marketData, apiKey: TEST_API_KEY }), db, cmcGet };
+  return { app, db, cmcGet };
 }

@@ -1,5 +1,5 @@
 import type { MarketDataProvider } from '../../clients/market-data-provider';
-import { CryptocurrencyNotFoundError, ValidationError } from '../../errors';
+import { CryptocurrencyAlreadyExistsError, CryptocurrencyNotFoundError, ValidationError } from '../../errors';
 import type {
   Cryptocurrency,
   CryptocurrencyRepository,
@@ -33,6 +33,11 @@ export class CryptocurrencyService {
 
   async create(input: CreateCryptocurrencyInput): Promise<Cryptocurrency> {
     const symbol = input.symbol.toUpperCase();
+
+    if (await this.repository.findBySymbol(symbol)) {
+      throw new CryptocurrencyAlreadyExistsError(symbol);
+    }
+
     const coin = await this.marketData.findCoinBySymbol(symbol);
 
     if (!coin) {
