@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import type { Database } from './db/database';
+import { createDocsRouter } from './docs/docs.routes';
 import type { Logger } from './logger/logger';
 import { createAuthMiddleware } from './middlewares/auth';
 import { createErrorHandler, notFoundHandler } from './middlewares/error-handler';
@@ -26,6 +27,7 @@ export function createApp({ db, services, apiKey, logger }: AppDependencies): Ex
 
   app.use(createRequestLogger(logger));
   app.use(createHealthRouter(db, logger));
+  app.use(createDocsRouter());
   app.use(
     '/api',
     createAuthMiddleware(apiKey),

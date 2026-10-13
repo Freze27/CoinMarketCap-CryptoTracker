@@ -336,7 +336,7 @@ describe('Prices API', () => {
       const response = await api().get(`/api/cryptocurrencies/${MISSING_ID}/prices`);
 
       expect(response.status).toBe(404);
-      expect(response.body).toEqual({ error: { message: `Cryptocurrency with id "${MISSING_ID}" not found` } });
+      expect(response.body).toEqual({ error: { message: `Cryptocurrency with id ${MISSING_ID} not found` } });
     });
 
     it('GetHistory_ShouldReturn400_WhenIdIsNotUuid', async () => {

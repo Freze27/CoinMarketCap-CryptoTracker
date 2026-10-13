@@ -180,7 +180,7 @@ describe('Cryptocurrencies API', () => {
       const response = await api().post('/api/cryptocurrencies').send({ symbol: 'btc', name: 'Bitcoin 2' });
 
       expect(response.status).toBe(409);
-      expect(response.body).toEqual({ error: { message: 'Cryptocurrency with symbol "BTC" already exists' } });
+      expect(response.body).toEqual({ error: { message: 'Cryptocurrency with symbol BTC already exists' } });
       expect(cmcGet).not.toHaveBeenCalled();
     });
 
@@ -270,7 +270,7 @@ describe('Cryptocurrencies API', () => {
       const response = await api().get(`/api/cryptocurrencies/${MISSING_ID}`);
 
       expect(response.status).toBe(404);
-      expect(response.body).toEqual({ error: { message: `Cryptocurrency with id "${MISSING_ID}" not found` } });
+      expect(response.body).toEqual({ error: { message: `Cryptocurrency with id ${MISSING_ID} not found` } });
     });
 
     it('GetById_ShouldReturn400_WhenIdIsMalformedUrlEncoding', async () => {

@@ -45,7 +45,7 @@ export class NotFoundError extends AppError {
 
 export class CryptocurrencyNotFoundError extends NotFoundError {
   constructor(id: string) {
-    super(`Cryptocurrency with id "${id}" not found`, { id });
+    super(`Cryptocurrency with id ${id} not found`, { id });
   }
 }
 
@@ -57,7 +57,7 @@ export class ConflictError extends AppError {
 
 export class CryptocurrencyAlreadyExistsError extends ConflictError {
   constructor(symbol: string) {
-    super(`Cryptocurrency with symbol "${symbol}" already exists`, { symbol });
+    super(`Cryptocurrency with symbol ${symbol} already exists`, { symbol });
   }
 }
 
