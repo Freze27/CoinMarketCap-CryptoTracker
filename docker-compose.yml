@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      PORT: 3000
+      DATABASE_PATH: /app/data/app.db
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+    stop_grace_period: 15s
+
+volumes:
+  app-data:
