@@ -50,12 +50,20 @@ describe('request logging', () => {
     expect(logsWith('Request completed')[0].requestId).toBe('client-trace-42');
   });
 
-  it.each([
-    ['ContainsSpaces', 'has spaces'],
-    ['ContainsJson', '{"injected":true}'],
-    ['IsTooLong', 'a'.repeat(65)],
-  ])('RequestId_ShouldBeReplaced_WhenIncomingRequestId%s', async (_case, incoming) => {
-    const response = await request(app).get('/health').set('X-Request-Id', incoming);
+  it('RequestId_ShouldBeReplaced_WhenIncomingRequestIdContainsSpaces', async () => {
+    const response = await request(app).get('/health').set('X-Request-Id', 'has spaces');
+
+    expect(response.headers['x-request-id']).toMatch(UUID_PATTERN);
+  });
+
+  it('RequestId_ShouldBeReplaced_WhenIncomingRequestIdContainsJson', async () => {
+    const response = await request(app).get('/health').set('X-Request-Id', '{"injected":true}');
+
+    expect(response.headers['x-request-id']).toMatch(UUID_PATTERN);
+  });
+
+  it('RequestId_ShouldBeReplaced_WhenIncomingRequestIdIsTooLong', async () => {
+    const response = await request(app).get('/health').set('X-Request-Id', 'a'.repeat(65));
 
     expect(response.headers['x-request-id']).toMatch(UUID_PATTERN);
   });

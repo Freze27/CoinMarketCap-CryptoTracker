@@ -80,13 +80,71 @@ describe('price sync task', () => {
     expect(Date.parse(after?.updatedAt ?? '')).toBeGreaterThan(Date.parse(before?.updatedAt ?? ''));
   });
 
-  it.each([
-    ['TimesOut', cmcNetworkError('ECONNABORTED')],
-    ['RespondsWith500', cmcHttpError(500)],
-    ['RespondsWith429', cmcHttpError(429)],
-    ['RejectsApiKey', cmcHttpError(401)],
-  ])('PriceSync_ShouldSaveNothingAndRunAgainOnNextInterval_WhenCoinMarketCap%s', async (_case, error) => {
-    cmcGet.mockRejectedValueOnce(error);
+  it('PriceSync_ShouldSaveNothingAndRunAgainOnNextInterval_WhenCoinMarketCapTimesOut', async () => {
+    cmcGet.mockRejectedValueOnce(cmcNetworkError('ECONNABORTED'));
+
+    await jest.advanceTimersByTimeAsync(INTERVAL);
+
+    await expect(historyOf(bitcoinId)).resolves.toEqual([]);
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Task failed',
+        task: 'price-sync',
+        error: expect.objectContaining({ message: 'CoinMarketCap is unavailable' }),
+      }),
+    );
+    expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+
+    await jest.advanceTimersByTimeAsync(INTERVAL);
+
+    await expect(historyOf(bitcoinId)).resolves.toEqual([65000.5]);
+  });
+
+  it('PriceSync_ShouldSaveNothingAndRunAgainOnNextInterval_WhenCoinMarketCapRespondsWith500', async () => {
+    cmcGet.mockRejectedValueOnce(cmcHttpError(500));
+
+    await jest.advanceTimersByTimeAsync(INTERVAL);
+
+    await expect(historyOf(bitcoinId)).resolves.toEqual([]);
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Task failed',
+        task: 'price-sync',
+        error: expect.objectContaining({ message: 'CoinMarketCap is unavailable' }),
+      }),
+    );
+    expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+
+    await jest.advanceTimersByTimeAsync(INTERVAL);
+
+    await expect(historyOf(bitcoinId)).resolves.toEqual([65000.5]);
+  });
+
+  it('PriceSync_ShouldSaveNothingAndRunAgainOnNextInterval_WhenCoinMarketCapRespondsWith429', async () => {
+    cmcGet.mockRejectedValueOnce(cmcHttpError(429));
+
+    await jest.advanceTimersByTimeAsync(INTERVAL);
+
+    await expect(historyOf(bitcoinId)).resolves.toEqual([]);
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Task failed',
+        task: 'price-sync',
+        error: expect.objectContaining({ message: 'CoinMarketCap is unavailable' }),
+      }),
+    );
+    expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+
+    await jest.advanceTimersByTimeAsync(INTERVAL);
+
+    await expect(historyOf(bitcoinId)).resolves.toEqual([65000.5]);
+  });
+
+  it('PriceSync_ShouldSaveNothingAndRunAgainOnNextInterval_WhenCoinMarketCapRejectsApiKey', async () => {
+    cmcGet.mockRejectedValueOnce(cmcHttpError(401));
 
     await jest.advanceTimersByTimeAsync(INTERVAL);
 

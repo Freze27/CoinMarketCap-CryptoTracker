@@ -52,20 +52,41 @@ describe('registerGracefulShutdown', () => {
     }
   });
 
-  it.each(['SIGINT', 'SIGTERM'])('Shutdown_ShouldStopSchedulerCloseServerAndDatabaseAndExitWith0_WhenSignalIs%s', async (signal) => {
+  it('Shutdown_ShouldStopSchedulerCloseServerAndDatabaseAndExitWith0_WhenSignalIsSigint', async () => {
     const scheduler = new TaskScheduler([], logger);
     const stop = jest.spyOn(scheduler, 'stop');
     register(scheduler);
     const exited = waitForExit(fakeProcess);
 
-    fakeProcess.emit(signal);
+    fakeProcess.emit('SIGINT');
     await exited;
 
     expect(stop).toHaveBeenCalledTimes(1);
     expect(server.listening).toBe(false);
     expect(db.isOpen).toBe(false);
     expect(fakeProcess.exit).toHaveBeenCalledWith(0);
-    expect(logs).toContainEqual(expect.objectContaining({ level: 'info', message: 'Shutdown signal received', signal }));
+    expect(logs).toContainEqual(
+      expect.objectContaining({ level: 'info', message: 'Shutdown signal received', signal: 'SIGINT' }),
+    );
+    expect(logs).toContainEqual(expect.objectContaining({ level: 'info', message: 'Shutdown completed' }));
+  });
+
+  it('Shutdown_ShouldStopSchedulerCloseServerAndDatabaseAndExitWith0_WhenSignalIsSigterm', async () => {
+    const scheduler = new TaskScheduler([], logger);
+    const stop = jest.spyOn(scheduler, 'stop');
+    register(scheduler);
+    const exited = waitForExit(fakeProcess);
+
+    fakeProcess.emit('SIGTERM');
+    await exited;
+
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(server.listening).toBe(false);
+    expect(db.isOpen).toBe(false);
+    expect(fakeProcess.exit).toHaveBeenCalledWith(0);
+    expect(logs).toContainEqual(
+      expect.objectContaining({ level: 'info', message: 'Shutdown signal received', signal: 'SIGTERM' }),
+    );
     expect(logs).toContainEqual(expect.objectContaining({ level: 'info', message: 'Shutdown completed' }));
   });
 
