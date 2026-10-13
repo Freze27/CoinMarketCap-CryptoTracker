@@ -144,21 +144,79 @@ describe('Cryptocurrencies API', () => {
       expect(cmcGet).toHaveBeenCalledTimes(2);
     });
 
-    it.each([
-      ['TimesOut', cmcNetworkError('ECONNABORTED'), 2],
-      ['IsUnreachable', cmcNetworkError('ENOTFOUND'), 2],
-      ['RespondsWith500', cmcHttpError(500), 2],
-      ['RespondsWith429', cmcHttpError(429), 2],
-      ['RejectsApiKey', cmcHttpError(401), 1],
-      ['DeniesAccessToEndpoint', cmcHttpError(403), 1],
-    ])('Create_ShouldReturn503AndSaveNothing_WhenCoinMarketCap%s', async (_case, error, expectedCalls) => {
-      cmcGet.mockRejectedValue(error);
+    it('Create_ShouldReturn503AndSaveNothing_WhenCoinMarketCapTimesOut', async () => {
+      cmcGet.mockRejectedValue(cmcNetworkError('ECONNABORTED'));
 
       const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin' });
 
       expect(response.status).toBe(503);
       expect(response.body).toEqual({ error: { message: 'CoinMarketCap is unavailable' } });
-      expect(cmcGet).toHaveBeenCalledTimes(expectedCalls);
+      expect(cmcGet).toHaveBeenCalledTimes(2);
+      expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Request failed', status: 503 }));
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn503AndSaveNothing_WhenCoinMarketCapIsUnreachable', async () => {
+      cmcGet.mockRejectedValue(cmcNetworkError('ENOTFOUND'));
+
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin' });
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({ error: { message: 'CoinMarketCap is unavailable' } });
+      expect(cmcGet).toHaveBeenCalledTimes(2);
+      expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Request failed', status: 503 }));
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn503AndSaveNothing_WhenCoinMarketCapRespondsWith500', async () => {
+      cmcGet.mockRejectedValue(cmcHttpError(500));
+
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin' });
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({ error: { message: 'CoinMarketCap is unavailable' } });
+      expect(cmcGet).toHaveBeenCalledTimes(2);
+      expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Request failed', status: 503 }));
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn503AndSaveNothing_WhenCoinMarketCapRespondsWith429', async () => {
+      cmcGet.mockRejectedValue(cmcHttpError(429));
+
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin' });
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({ error: { message: 'CoinMarketCap is unavailable' } });
+      expect(cmcGet).toHaveBeenCalledTimes(2);
+      expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Request failed', status: 503 }));
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn503AndSaveNothing_WhenCoinMarketCapRejectsApiKey', async () => {
+      cmcGet.mockRejectedValue(cmcHttpError(401));
+
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin' });
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({ error: { message: 'CoinMarketCap is unavailable' } });
+      expect(cmcGet).toHaveBeenCalledTimes(1);
+      expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Request failed', status: 503 }));
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn503AndSaveNothing_WhenCoinMarketCapDeniesAccessToEndpoint', async () => {
+      cmcGet.mockRejectedValue(cmcHttpError(403));
+
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin' });
+
+      expect(response.status).toBe(503);
+      expect(response.body).toEqual({ error: { message: 'CoinMarketCap is unavailable' } });
+      expect(cmcGet).toHaveBeenCalledTimes(1);
       expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Request failed', status: 503 }));
       expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
       await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
@@ -196,22 +254,92 @@ describe('Cryptocurrencies API', () => {
       await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [{ symbol: 'BTC' }] } });
     });
 
-    it.each([
-      ['SymbolIsMissing', { name: 'Bitcoin' }, 'symbol'],
-      ['SymbolIsNotAString', { symbol: 123, name: 'Bitcoin' }, 'symbol'],
-      ['SymbolHasInvalidCharacters', { symbol: 'BT-C', name: 'Bitcoin' }, 'symbol'],
-      ['SymbolIsTooLong', { symbol: 'A'.repeat(21), name: 'Bitcoin' }, 'symbol'],
-      ['NameIsMissing', { symbol: 'BTC' }, 'name'],
-      ['NameIsBlank', { symbol: 'BTC', name: '   ' }, 'name'],
-      ['NameIsTooLong', { symbol: 'BTC', name: 'a'.repeat(101) }, 'name'],
-      ['BodyHasUnknownField', { symbol: 'BTC', name: 'Bitcoin', price: 1 }, 'price'],
-      ['BodyIsAnArray', [], 'body'],
-    ])('Create_ShouldReturn400_When%s', async (_case, body, field) => {
-      const response = await api().post('/api/cryptocurrencies').send(body);
+    it('Create_ShouldReturn400_WhenSymbolIsMissing', async () => {
+      const response = await api().post('/api/cryptocurrencies').send({ name: 'Bitcoin' });
 
       expect(response.status).toBe(400);
       expect(response.body.error.message).toBe('Request validation failed');
-      expect(response.body.error.details).toEqual([{ field, message: expect.any(String) }]);
+      expect(response.body.error.details).toEqual([{ field: 'symbol', message: expect.any(String) }]);
+      expect(cmcGet).not.toHaveBeenCalled();
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn400_WhenSymbolIsNotAString', async () => {
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 123, name: 'Bitcoin' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe('Request validation failed');
+      expect(response.body.error.details).toEqual([{ field: 'symbol', message: expect.any(String) }]);
+      expect(cmcGet).not.toHaveBeenCalled();
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn400_WhenSymbolHasInvalidCharacters', async () => {
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BT-C', name: 'Bitcoin' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe('Request validation failed');
+      expect(response.body.error.details).toEqual([{ field: 'symbol', message: expect.any(String) }]);
+      expect(cmcGet).not.toHaveBeenCalled();
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn400_WhenSymbolIsTooLong', async () => {
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'A'.repeat(21), name: 'Bitcoin' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe('Request validation failed');
+      expect(response.body.error.details).toEqual([{ field: 'symbol', message: expect.any(String) }]);
+      expect(cmcGet).not.toHaveBeenCalled();
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn400_WhenNameIsMissing', async () => {
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe('Request validation failed');
+      expect(response.body.error.details).toEqual([{ field: 'name', message: expect.any(String) }]);
+      expect(cmcGet).not.toHaveBeenCalled();
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn400_WhenNameIsBlank', async () => {
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: '   ' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe('Request validation failed');
+      expect(response.body.error.details).toEqual([{ field: 'name', message: expect.any(String) }]);
+      expect(cmcGet).not.toHaveBeenCalled();
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn400_WhenNameIsTooLong', async () => {
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'a'.repeat(101) });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe('Request validation failed');
+      expect(response.body.error.details).toEqual([{ field: 'name', message: expect.any(String) }]);
+      expect(cmcGet).not.toHaveBeenCalled();
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn400_WhenBodyHasUnknownField', async () => {
+      const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin', price: 1 });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe('Request validation failed');
+      expect(response.body.error.details).toEqual([{ field: 'price', message: expect.any(String) }]);
+      expect(cmcGet).not.toHaveBeenCalled();
+      await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
+    });
+
+    it('Create_ShouldReturn400_WhenBodyIsAnArray', async () => {
+      const response = await api().post('/api/cryptocurrencies').send([]);
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe('Request validation failed');
+      expect(response.body.error.details).toEqual([{ field: 'body', message: expect.any(String) }]);
       expect(cmcGet).not.toHaveBeenCalled();
       await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
     });
@@ -304,17 +432,31 @@ describe('Cryptocurrencies API', () => {
       expect(response.status).toBe(404);
     });
 
-    it.each([
-      ['NameIsMissing', {}, 'name'],
-      ['NameIsNotAString', { name: 42 }, 'name'],
-      ['BodyTriesToChangeSymbol', { name: 'Bitcoin', symbol: 'ETH' }, 'symbol'],
-    ])('Update_ShouldReturn400_When%s', async (_case, body, field) => {
+    it('Update_ShouldReturn400_WhenNameIsMissing', async () => {
       const created = await createCryptocurrency('BTC', 'Bitcoin');
 
-      const response = await api().patch(`/api/cryptocurrencies/${created.id}`).send(body);
+      const response = await api().patch(`/api/cryptocurrencies/${created.id}`).send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.error.details).toEqual([{ field, message: expect.any(String) }]);
+      expect(response.body.error.details).toEqual([{ field: 'name', message: expect.any(String) }]);
+    });
+
+    it('Update_ShouldReturn400_WhenNameIsNotAString', async () => {
+      const created = await createCryptocurrency('BTC', 'Bitcoin');
+
+      const response = await api().patch(`/api/cryptocurrencies/${created.id}`).send({ name: 42 });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'name', message: expect.any(String) }]);
+    });
+
+    it('Update_ShouldReturn400_WhenBodyTriesToChangeSymbol', async () => {
+      const created = await createCryptocurrency('BTC', 'Bitcoin');
+
+      const response = await api().patch(`/api/cryptocurrencies/${created.id}`).send({ name: 'Bitcoin', symbol: 'ETH' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'symbol', message: expect.any(String) }]);
     });
   });
 

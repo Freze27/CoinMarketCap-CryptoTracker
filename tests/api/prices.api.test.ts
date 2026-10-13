@@ -170,15 +170,51 @@ describe('Prices API', () => {
       expect(quotesCalls(cmcGet)).toHaveLength(2);
     });
 
-    it.each([
-      ['TimesOut', cmcNetworkError('ECONNABORTED')],
-      ['RespondsWith500', cmcHttpError(500)],
-      ['RejectsApiKey', cmcHttpError(401)],
-    ])('GetLatest_ShouldReturn200WithStoredPricesMarkedStale_WhenCoinMarketCap%s', async (_case, error) => {
+    it('GetLatest_ShouldReturn200WithStoredPricesMarkedStale_WhenCoinMarketCapTimesOut', async () => {
       useApp({ priceCacheTtlMs: 0 });
       const bitcoinId = await track('BTC', 'Bitcoin');
       await saveHistory(bitcoinId, [[100, DAY_1]]);
-      cmcGet.mockRejectedValue(error);
+      cmcGet.mockRejectedValue(cmcNetworkError('ECONNABORTED'));
+
+      const response = await api().get('/api/prices');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        data: [{ cryptocurrencyId: bitcoinId, symbol: 'BTC', name: 'Bitcoin', price: 100, fetchedAt: DAY_1 }],
+        currency: 'USD',
+        stale: true,
+      });
+      expect(logs).toContainEqual(
+        expect.objectContaining({ level: 'warn', message: 'Failed to refresh prices, serving stored prices' }),
+      );
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+    });
+
+    it('GetLatest_ShouldReturn200WithStoredPricesMarkedStale_WhenCoinMarketCapRespondsWith500', async () => {
+      useApp({ priceCacheTtlMs: 0 });
+      const bitcoinId = await track('BTC', 'Bitcoin');
+      await saveHistory(bitcoinId, [[100, DAY_1]]);
+      cmcGet.mockRejectedValue(cmcHttpError(500));
+
+      const response = await api().get('/api/prices');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        data: [{ cryptocurrencyId: bitcoinId, symbol: 'BTC', name: 'Bitcoin', price: 100, fetchedAt: DAY_1 }],
+        currency: 'USD',
+        stale: true,
+      });
+      expect(logs).toContainEqual(
+        expect.objectContaining({ level: 'warn', message: 'Failed to refresh prices, serving stored prices' }),
+      );
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
+    });
+
+    it('GetLatest_ShouldReturn200WithStoredPricesMarkedStale_WhenCoinMarketCapRejectsApiKey', async () => {
+      useApp({ priceCacheTtlMs: 0 });
+      const bitcoinId = await track('BTC', 'Bitcoin');
+      await saveHistory(bitcoinId, [[100, DAY_1]]);
+      cmcGet.mockRejectedValue(cmcHttpError(401));
 
       const response = await api().get('/api/prices');
 
@@ -228,17 +264,80 @@ describe('Prices API', () => {
       ]);
     });
 
-    it.each([
-      ['PriceIsNull', cmcQuote(1027, null)],
-      ['PriceIsNegative', cmcQuote(1027, -5)],
-      ['PriceIsText', cmcQuote(1027, '3200')],
-      ['QuoteIsForAnotherCurrency', { id: 1027, quote: [{ symbol: 'EUR', price: 3000 }] }],
-      ['QuoteIsNotAnArray', { id: 1027, quote: { USD: { price: 3200 } } }],
-      ['EntryIsNotAnObject', 'broken'],
-    ])('GetLatest_ShouldSkipCryptocurrencyAndKeepTheRest_When%s', async (_case, brokenEntry) => {
+    it('GetLatest_ShouldSkipCryptocurrencyAndKeepTheRest_WhenPriceIsNull', async () => {
       await track('BTC', 'Bitcoin');
       await track('ETH', 'Ethereum');
-      cmcGet.mockResolvedValue({ data: { data: [cmcQuote(1, 65000.5), brokenEntry] } });
+      cmcGet.mockResolvedValue({ data: { data: [cmcQuote(1, 65000.5), cmcQuote(1027, null)] } });
+
+      const response = await api().get('/api/prices');
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([
+        expect.objectContaining({ symbol: 'BTC', price: 65000.5 }),
+        expect.objectContaining({ symbol: 'ETH', price: null }),
+      ]);
+    });
+
+    it('GetLatest_ShouldSkipCryptocurrencyAndKeepTheRest_WhenPriceIsNegative', async () => {
+      await track('BTC', 'Bitcoin');
+      await track('ETH', 'Ethereum');
+      cmcGet.mockResolvedValue({ data: { data: [cmcQuote(1, 65000.5), cmcQuote(1027, -5)] } });
+
+      const response = await api().get('/api/prices');
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([
+        expect.objectContaining({ symbol: 'BTC', price: 65000.5 }),
+        expect.objectContaining({ symbol: 'ETH', price: null }),
+      ]);
+    });
+
+    it('GetLatest_ShouldSkipCryptocurrencyAndKeepTheRest_WhenPriceIsText', async () => {
+      await track('BTC', 'Bitcoin');
+      await track('ETH', 'Ethereum');
+      cmcGet.mockResolvedValue({ data: { data: [cmcQuote(1, 65000.5), cmcQuote(1027, '3200')] } });
+
+      const response = await api().get('/api/prices');
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([
+        expect.objectContaining({ symbol: 'BTC', price: 65000.5 }),
+        expect.objectContaining({ symbol: 'ETH', price: null }),
+      ]);
+    });
+
+    it('GetLatest_ShouldSkipCryptocurrencyAndKeepTheRest_WhenQuoteIsForAnotherCurrency', async () => {
+      await track('BTC', 'Bitcoin');
+      await track('ETH', 'Ethereum');
+      cmcGet.mockResolvedValue({ data: { data: [cmcQuote(1, 65000.5), { id: 1027, quote: [{ symbol: 'EUR', price: 3000 }] }] } });
+
+      const response = await api().get('/api/prices');
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([
+        expect.objectContaining({ symbol: 'BTC', price: 65000.5 }),
+        expect.objectContaining({ symbol: 'ETH', price: null }),
+      ]);
+    });
+
+    it('GetLatest_ShouldSkipCryptocurrencyAndKeepTheRest_WhenQuoteIsNotAnArray', async () => {
+      await track('BTC', 'Bitcoin');
+      await track('ETH', 'Ethereum');
+      cmcGet.mockResolvedValue({ data: { data: [cmcQuote(1, 65000.5), { id: 1027, quote: { USD: { price: 3200 } } }] } });
+
+      const response = await api().get('/api/prices');
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([
+        expect.objectContaining({ symbol: 'BTC', price: 65000.5 }),
+        expect.objectContaining({ symbol: 'ETH', price: null }),
+      ]);
+    });
+
+    it('GetLatest_ShouldSkipCryptocurrencyAndKeepTheRest_WhenEntryIsNotAnObject', async () => {
+      await track('BTC', 'Bitcoin');
+      await track('ETH', 'Ethereum');
+      cmcGet.mockResolvedValue({ data: { data: [cmcQuote(1, 65000.5), 'broken'] } });
 
       const response = await api().get('/api/prices');
 
@@ -316,13 +415,26 @@ describe('Prices API', () => {
       expect(response.body.data.map((item: { price: number }) => item.price)).toEqual([3, 2]);
     });
 
-    it.each([
-      ['February29InLeapYear', '2028-02-29'],
-      ['LastDayOfMonth', '2026-10-31T23:59:59.999Z'],
-      ['DateWithPositiveOffset', '2026-12-31T23:00:00+14:00'],
-      ['DateWithNegativeOffset', '2026-01-01T00:00:00-12:00'],
-    ])('GetHistory_ShouldReturn200_WhenDateIs%s', async (_case, from) => {
-      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from });
+    it('GetHistory_ShouldReturn200_WhenDateIsFebruary29InLeapYear', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2028-02-29' });
+
+      expect(response.status).toBe(200);
+    });
+
+    it('GetHistory_ShouldReturn200_WhenDateIsLastDayOfMonth', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-10-31T23:59:59.999Z' });
+
+      expect(response.status).toBe(200);
+    });
+
+    it('GetHistory_ShouldReturn200_WhenDateIsDateWithPositiveOffset', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-12-31T23:00:00+14:00' });
+
+      expect(response.status).toBe(200);
+    });
+
+    it('GetHistory_ShouldReturn200_WhenDateIsDateWithNegativeOffset', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-01-01T00:00:00-12:00' });
 
       expect(response.status).toBe(200);
     });
@@ -357,32 +469,144 @@ describe('Prices API', () => {
       expect(response.body.error.details).toEqual([{ field: 'id', message: 'must be a valid UUID' }]);
     });
 
-    it.each([
-      ['LimitIsZero', { limit: '0' }, 'limit'],
-      ['LimitIsNegative', { limit: '-1' }, 'limit'],
-      ['LimitIsAboveMaximum', { limit: '1001' }, 'limit'],
-      ['LimitIsNotANumber', { limit: 'abc' }, 'limit'],
-      ['LimitIsFractional', { limit: '1.5' }, 'limit'],
-      ['OffsetIsNegative', { offset: '-1' }, 'offset'],
-      ['OffsetIsNotANumber', { offset: 'abc' }, 'offset'],
-      ['FromIsNotADate', { from: 'yesterday' }, 'from'],
-      ['FromIsImpossibleDate', { from: '2026-13-45T00:00:00Z' }, 'from'],
-      ['FromIsFebruary30', { from: '2026-02-30T00:00:00Z' }, 'from'],
-      ['FromIsFebruary29InNonLeapYear', { from: '2026-02-29' }, 'from'],
-      ['FromIsApril31', { from: '2026-04-31T12:00:00+03:00' }, 'from'],
-      ['ToIsJune31', { to: '2026-06-31' }, 'to'],
-      ['FromHasHour25', { from: '2026-10-01T25:00:00Z' }, 'from'],
-      ['FromHasMinute60', { from: '2026-10-01T10:60:00Z' }, 'from'],
-      ['FromHasImpossibleTimeZone', { from: '2026-10-01T10:00:00+25:00' }, 'from'],
-      ['FromHasTimeWithoutTimeZone', { from: '2026-10-02T10:00:00' }, 'from'],
-      ['ToIsNotADate', { to: '02.10.2026' }, 'to'],
-      ['FromIsLaterThanTo', { from: DAY_3, to: DAY_1 }, 'from'],
-      ['ParameterIsUnknown', { order: 'asc' }, 'order'],
-    ])('GetHistory_ShouldReturn400_When%s', async (_case, query, field) => {
-      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query(query);
+    it('GetHistory_ShouldReturn400_WhenLimitIsZero', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ limit: '0' });
 
       expect(response.status).toBe(400);
-      expect(response.body.error.details).toEqual([{ field, message: expect.any(String) }]);
+      expect(response.body.error.details).toEqual([{ field: 'limit', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenLimitIsNegative', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ limit: '-1' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'limit', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenLimitIsAboveMaximum', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ limit: '1001' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'limit', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenLimitIsNotANumber', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ limit: 'abc' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'limit', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenLimitIsFractional', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ limit: '1.5' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'limit', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenOffsetIsNegative', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ offset: '-1' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'offset', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenOffsetIsNotANumber', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ offset: 'abc' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'offset', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromIsNotADate', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: 'yesterday' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromIsImpossibleDate', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-13-45T00:00:00Z' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromIsFebruary30', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-02-30T00:00:00Z' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromIsFebruary29InNonLeapYear', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-02-29' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromIsApril31', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-04-31T12:00:00+03:00' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenToIsJune31', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ to: '2026-06-31' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'to', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromHasHour25', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-10-01T25:00:00Z' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromHasMinute60', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-10-01T10:60:00Z' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromHasImpossibleTimeZone', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-10-01T10:00:00+25:00' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromHasTimeWithoutTimeZone', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: '2026-10-02T10:00:00' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenToIsNotADate', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ to: '02.10.2026' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'to', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenFromIsLaterThanTo', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from: DAY_3, to: DAY_1 });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'from', message: expect.any(String) }]);
+    });
+
+    it('GetHistory_ShouldReturn400_WhenParameterIsUnknown', async () => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ order: 'asc' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.details).toEqual([{ field: 'order', message: expect.any(String) }]);
     });
 
     it('GetHistory_ShouldReturn400_WhenParameterIsRepeated', async () => {

@@ -18,19 +18,52 @@ function logAllLevels(logger: ReturnType<typeof createLogger>): void {
 }
 
 describe('createLogger', () => {
-  it.each([
-    ['error', ['error']],
-    ['warn', ['error', 'warn']],
-    ['info', ['error', 'warn', 'info']],
-    ['debug', ['error', 'warn', 'info', 'debug']],
-    ['trace', ['error', 'warn', 'info', 'debug', 'trace']],
-    ['silent', []],
-  ] as const)('Log_ShouldWriteOnlyLevelsUpToThreshold_WhenLevelIs%s', (level, expected) => {
-    const { logger, lines } = capture(level);
+  it('Log_ShouldWriteOnlyLevelsUpToThreshold_WhenLevelIsError', () => {
+    const { logger, lines } = capture('error');
 
     logAllLevels(logger);
 
-    expect(lines.map(([entryLevel]) => entryLevel)).toEqual(expected);
+    expect(lines.map(([entryLevel]) => entryLevel)).toEqual(['error']);
+  });
+
+  it('Log_ShouldWriteOnlyLevelsUpToThreshold_WhenLevelIsWarn', () => {
+    const { logger, lines } = capture('warn');
+
+    logAllLevels(logger);
+
+    expect(lines.map(([entryLevel]) => entryLevel)).toEqual(['error', 'warn']);
+  });
+
+  it('Log_ShouldWriteOnlyLevelsUpToThreshold_WhenLevelIsInfo', () => {
+    const { logger, lines } = capture('info');
+
+    logAllLevels(logger);
+
+    expect(lines.map(([entryLevel]) => entryLevel)).toEqual(['error', 'warn', 'info']);
+  });
+
+  it('Log_ShouldWriteOnlyLevelsUpToThreshold_WhenLevelIsDebug', () => {
+    const { logger, lines } = capture('debug');
+
+    logAllLevels(logger);
+
+    expect(lines.map(([entryLevel]) => entryLevel)).toEqual(['error', 'warn', 'info', 'debug']);
+  });
+
+  it('Log_ShouldWriteOnlyLevelsUpToThreshold_WhenLevelIsTrace', () => {
+    const { logger, lines } = capture('trace');
+
+    logAllLevels(logger);
+
+    expect(lines.map(([entryLevel]) => entryLevel)).toEqual(['error', 'warn', 'info', 'debug', 'trace']);
+  });
+
+  it('Log_ShouldWriteOnlyLevelsUpToThreshold_WhenLevelIsSilent', () => {
+    const { logger, lines } = capture('silent');
+
+    logAllLevels(logger);
+
+    expect(lines.map(([entryLevel]) => entryLevel)).toEqual([]);
   });
 
   it('Log_ShouldWriteJsonLineWithTimestampLevelMessageAndContext_WhenEntryIsWritten', () => {
@@ -128,17 +161,86 @@ describe('createLogger', () => {
     expect(entry.timestamp).not.toBe('fake');
   });
 
-  it.each(['authorization', 'Authorization', 'X-CMC_PRO_API_KEY', 'apiKey', 'api_key', 'token', 'accessToken', 'password', 'secret'])(
-    'Log_ShouldRedactValue_WhenKeyIs%s',
-    (key) => {
-      const { logger, lines } = capture('info');
+  it('Log_ShouldRedactValue_WhenKeyIsLowercaseAuthorization', () => {
+    const { logger, lines } = capture('info');
 
-      logger.info('Request failed', { error: { config: { headers: { [key]: 'super-secret-value' } } } });
+    logger.info('Request failed', { error: { config: { headers: { authorization: 'super-secret-value' } } } });
 
-      expect(lines[0][1]).not.toContain('super-secret-value');
-      expect(lines[0][1]).toContain('[redacted]');
-    },
-  );
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
+
+  it('Log_ShouldRedactValue_WhenKeyIsAuthorization', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Request failed', { error: { config: { headers: { Authorization: 'super-secret-value' } } } });
+
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
+
+  it('Log_ShouldRedactValue_WhenKeyIsCoinMarketCapApiKeyHeader', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Request failed', { error: { config: { headers: { 'X-CMC_PRO_API_KEY': 'super-secret-value' } } } });
+
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
+
+  it('Log_ShouldRedactValue_WhenKeyIsApiKeyInCamelCase', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Request failed', { error: { config: { headers: { apiKey: 'super-secret-value' } } } });
+
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
+
+  it('Log_ShouldRedactValue_WhenKeyIsApiKeyInSnakeCase', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Request failed', { error: { config: { headers: { api_key: 'super-secret-value' } } } });
+
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
+
+  it('Log_ShouldRedactValue_WhenKeyIsToken', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Request failed', { error: { config: { headers: { token: 'super-secret-value' } } } });
+
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
+
+  it('Log_ShouldRedactValue_WhenKeyIsAccessToken', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Request failed', { error: { config: { headers: { accessToken: 'super-secret-value' } } } });
+
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
+
+  it('Log_ShouldRedactValue_WhenKeyIsPassword', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Request failed', { error: { config: { headers: { password: 'super-secret-value' } } } });
+
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
+
+  it('Log_ShouldRedactValue_WhenKeyIsSecret', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Request failed', { error: { config: { headers: { secret: 'super-secret-value' } } } });
+
+    expect(lines[0][1]).not.toContain('super-secret-value');
+    expect(lines[0][1]).toContain('[redacted]');
+  });
 
   it('Log_ShouldWriteErrorsAndWarningsToStderrAndRestToStdout_WhenDefaultWriterIsUsed', () => {
     const stdout = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);

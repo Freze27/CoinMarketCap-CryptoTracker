@@ -32,34 +32,102 @@ describe('API authorization', () => {
     expect(response.status).toBe(200);
   });
 
-  it.each([
-    ['HeaderIsMissing', undefined],
-    ['TokenIsWrong', 'Bearer wrong-key'],
-    ['TokenIsPrefixOfKey', `Bearer ${TEST_API_KEY.slice(0, -1)}`],
-    ['TokenHasExtraCharacters', `Bearer ${TEST_API_KEY}x`],
-    ['TokenIsEmpty', 'Bearer '],
-    ['SchemeIsBasic', `Basic ${TEST_API_KEY}`],
-    ['SchemeIsMissing', TEST_API_KEY],
-    ['HeaderHasExtraParts', `Bearer ${TEST_API_KEY} extra`],
-  ])('Auth_ShouldReturn401_When%s', async (_case, header) => {
-    const pending = request(app).get('/api/cryptocurrencies');
-
-    const response = await (header === undefined ? pending : pending.set('Authorization', header));
+  it('Auth_ShouldReturn401_WhenHeaderIsMissing', async () => {
+    const response = await request(app).get('/api/cryptocurrencies');
 
     expect(response.status).toBe(401);
     expect(response.headers['www-authenticate']).toBe('Bearer');
     expect(response.body).toEqual({ error: { message: 'Valid Bearer token is required' } });
   });
 
-  it.each([
-    ['get', '/api/cryptocurrencies'],
-    ['post', '/api/cryptocurrencies'],
-    ['get', `/api/cryptocurrencies/${ANY_ID}`],
-    ['patch', `/api/cryptocurrencies/${ANY_ID}`],
-    ['delete', `/api/cryptocurrencies/${ANY_ID}`],
-    ['get', '/api/unknown'],
-  ] as const)('Auth_ShouldReturn401_WhenTokenIsMissingFor_%s_%s', async (method, path) => {
-    const response = await request(app)[method](path);
+  it('Auth_ShouldReturn401_WhenTokenIsWrong', async () => {
+    const response = await request(app).get('/api/cryptocurrencies').set('Authorization', 'Bearer wrong-key');
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(response.body).toEqual({ error: { message: 'Valid Bearer token is required' } });
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenIsPrefixOfKey', async () => {
+    const response = await request(app).get('/api/cryptocurrencies').set('Authorization', `Bearer ${TEST_API_KEY.slice(0, -1)}`);
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(response.body).toEqual({ error: { message: 'Valid Bearer token is required' } });
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenHasExtraCharacters', async () => {
+    const response = await request(app).get('/api/cryptocurrencies').set('Authorization', `Bearer ${TEST_API_KEY}x`);
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(response.body).toEqual({ error: { message: 'Valid Bearer token is required' } });
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenIsEmpty', async () => {
+    const response = await request(app).get('/api/cryptocurrencies').set('Authorization', 'Bearer ');
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(response.body).toEqual({ error: { message: 'Valid Bearer token is required' } });
+  });
+
+  it('Auth_ShouldReturn401_WhenSchemeIsBasic', async () => {
+    const response = await request(app).get('/api/cryptocurrencies').set('Authorization', `Basic ${TEST_API_KEY}`);
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(response.body).toEqual({ error: { message: 'Valid Bearer token is required' } });
+  });
+
+  it('Auth_ShouldReturn401_WhenSchemeIsMissing', async () => {
+    const response = await request(app).get('/api/cryptocurrencies').set('Authorization', TEST_API_KEY);
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(response.body).toEqual({ error: { message: 'Valid Bearer token is required' } });
+  });
+
+  it('Auth_ShouldReturn401_WhenHeaderHasExtraParts', async () => {
+    const response = await request(app).get('/api/cryptocurrencies').set('Authorization', `Bearer ${TEST_API_KEY} extra`);
+
+    expect(response.status).toBe(401);
+    expect(response.headers['www-authenticate']).toBe('Bearer');
+    expect(response.body).toEqual({ error: { message: 'Valid Bearer token is required' } });
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenIsMissingForGetList', async () => {
+    const response = await request(app).get('/api/cryptocurrencies');
+
+    expect(response.status).toBe(401);
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenIsMissingForCreate', async () => {
+    const response = await request(app).post('/api/cryptocurrencies');
+
+    expect(response.status).toBe(401);
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenIsMissingForGetById', async () => {
+    const response = await request(app).get(`/api/cryptocurrencies/${ANY_ID}`);
+
+    expect(response.status).toBe(401);
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenIsMissingForUpdate', async () => {
+    const response = await request(app).patch(`/api/cryptocurrencies/${ANY_ID}`);
+
+    expect(response.status).toBe(401);
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenIsMissingForDelete', async () => {
+    const response = await request(app).delete(`/api/cryptocurrencies/${ANY_ID}`);
+
+    expect(response.status).toBe(401);
+  });
+
+  it('Auth_ShouldReturn401_WhenTokenIsMissingForUnknownApiRoute', async () => {
+    const response = await request(app).get('/api/unknown');
 
     expect(response.status).toBe(401);
   });
