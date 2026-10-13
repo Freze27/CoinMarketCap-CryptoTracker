@@ -316,6 +316,17 @@ describe('Prices API', () => {
       expect(response.body.data.map((item: { price: number }) => item.price)).toEqual([3, 2]);
     });
 
+    it.each([
+      ['February29InLeapYear', '2028-02-29'],
+      ['LastDayOfMonth', '2026-10-31T23:59:59.999Z'],
+      ['DateWithPositiveOffset', '2026-12-31T23:00:00+14:00'],
+      ['DateWithNegativeOffset', '2026-01-01T00:00:00-12:00'],
+    ])('GetHistory_ShouldReturn200_WhenDateIs%s', async (_case, from) => {
+      const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ from });
+
+      expect(response.status).toBe(200);
+    });
+
     it('GetHistory_ShouldReturnRequestedPage_WhenLimitAndOffsetAreSet', async () => {
       const response = await api().get(`/api/cryptocurrencies/${bitcoinId}/prices`).query({ limit: 1, offset: 1 });
 
@@ -356,6 +367,13 @@ describe('Prices API', () => {
       ['OffsetIsNotANumber', { offset: 'abc' }, 'offset'],
       ['FromIsNotADate', { from: 'yesterday' }, 'from'],
       ['FromIsImpossibleDate', { from: '2026-13-45T00:00:00Z' }, 'from'],
+      ['FromIsFebruary30', { from: '2026-02-30T00:00:00Z' }, 'from'],
+      ['FromIsFebruary29InNonLeapYear', { from: '2026-02-29' }, 'from'],
+      ['FromIsApril31', { from: '2026-04-31T12:00:00+03:00' }, 'from'],
+      ['ToIsJune31', { to: '2026-06-31' }, 'to'],
+      ['FromHasHour25', { from: '2026-10-01T25:00:00Z' }, 'from'],
+      ['FromHasMinute60', { from: '2026-10-01T10:60:00Z' }, 'from'],
+      ['FromHasImpossibleTimeZone', { from: '2026-10-01T10:00:00+25:00' }, 'from'],
       ['FromHasTimeWithoutTimeZone', { from: '2026-10-02T10:00:00' }, 'from'],
       ['ToIsNotADate', { to: '02.10.2026' }, 'to'],
       ['FromIsLaterThanTo', { from: DAY_3, to: DAY_1 }, 'from'],

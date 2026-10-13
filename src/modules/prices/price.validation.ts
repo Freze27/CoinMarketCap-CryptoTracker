@@ -7,12 +7,28 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 const ALLOWED_PARAMS = ['from', 'to', 'limit', 'offset'];
 
+function isExistingCalendarDay(value: string): boolean {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function isValidDate(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    DATE_PATTERN.test(value) &&
+    isExistingCalendarDay(value) &&
+    !Number.isNaN(Date.parse(value))
+  );
+}
+
 function validateDate(field: string, value: unknown, errors: FieldError[]): string | undefined {
   if (value === undefined) {
     return undefined;
   }
 
-  if (typeof value !== 'string' || !DATE_PATTERN.test(value) || Number.isNaN(Date.parse(value))) {
+  if (!isValidDate(value)) {
     errors.push({ field, message: 'must be an ISO 8601 date, for example 2026-10-01T00:00:00Z' });
     return undefined;
   }
