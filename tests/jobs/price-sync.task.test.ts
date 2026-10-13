@@ -4,6 +4,7 @@ import { TaskScheduler } from '../../src/jobs/task-scheduler';
 import { SqliteCryptocurrencyRepository } from '../../src/modules/cryptocurrencies/sqlite-cryptocurrency.repository';
 import { SqlitePriceHistoryRepository } from '../../src/modules/prices/sqlite-price-history.repository';
 import type { Services } from '../../src/services';
+import type { LogEntry } from '../helpers/logger';
 import { cmcHttpError, cmcNetworkError, cmcQuotesResponse, createTestApp, quotesCalls } from '../helpers/app';
 
 const INTERVAL = 300_000;
@@ -15,7 +16,7 @@ describe('price sync task', () => {
   let scheduler: TaskScheduler;
   let bitcoinId: string;
   let ethereumId: string;
-  let consoleError: jest.SpyInstance;
+  let logs: LogEntry[];
 
   async function historyOf(cryptocurrencyId: string): Promise<number[]> {
     const records = await new SqlitePriceHistoryRepository(db).findHistory(cryptocurrencyId, { limit: 100, offset: 0 });
@@ -24,22 +25,19 @@ describe('price sync task', () => {
 
   beforeEach(async () => {
     jest.useFakeTimers();
-    jest.spyOn(console, 'log').mockImplementation(() => undefined);
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
-
-    ({ db, cmcGet, services } = createTestApp({ cmcMaxRetries: 0 }));
+    const testApp = createTestApp({ cmcMaxRetries: 0 });
+    ({ db, cmcGet, services, logs } = testApp);
     const cryptocurrencies = new SqliteCryptocurrencyRepository(db);
     bitcoinId = (await cryptocurrencies.create({ symbol: 'BTC', name: 'Bitcoin', cmcId: 1 })).id;
     ethereumId = (await cryptocurrencies.create({ symbol: 'ETH', name: 'Ethereum', cmcId: 1027 })).id;
 
-    scheduler = new TaskScheduler([createPriceSyncTask(services.priceService, INTERVAL)]);
+    scheduler = new TaskScheduler([createPriceSyncTask(services.priceService, INTERVAL)], testApp.logger);
     scheduler.start();
   });
 
   afterEach(async () => {
     await scheduler.stop();
     jest.useRealTimers();
-    jest.restoreAllMocks();
     db.close();
   });
 
@@ -49,6 +47,9 @@ describe('price sync task', () => {
     await expect(historyOf(bitcoinId)).resolves.toEqual([65000.5]);
     await expect(historyOf(ethereumId)).resolves.toEqual([3200.25]);
     expect(quotesCalls(cmcGet)).toHaveLength(1);
+    expect(logs).toContainEqual(
+      expect.objectContaining({ level: 'info', message: 'Task finished', task: 'price-sync', result: { savedPrices: 2 } }),
+    );
   });
 
   it('PriceSync_ShouldNotRequestPrices_WhenIntervalHasNotPassed', async () => {
@@ -90,11 +91,15 @@ describe('price sync task', () => {
     await jest.advanceTimersByTimeAsync(INTERVAL);
 
     await expect(historyOf(bitcoinId)).resolves.toEqual([]);
-    expect(consoleError).toHaveBeenCalledWith(
-      expect.stringContaining('Task "price-sync" failed'),
-      expect.objectContaining({ message: 'CoinMarketCap is unavailable' }),
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Task failed',
+        task: 'price-sync',
+        error: expect.objectContaining({ message: 'CoinMarketCap is unavailable' }),
+      }),
     );
-    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('test-cmc-key');
+    expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
 
     await jest.advanceTimersByTimeAsync(INTERVAL);
 
@@ -107,7 +112,7 @@ describe('price sync task', () => {
     await jest.advanceTimersByTimeAsync(INTERVAL);
 
     await expect(historyOf(bitcoinId)).resolves.toEqual([]);
-    expect(consoleError).toHaveBeenCalled();
+    expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Task failed' }));
   });
 
   it('PriceSync_ShouldSavePricesOfRemainingCryptocurrencies_WhenOneIsDeletedDuringRequest', async () => {
@@ -119,7 +124,7 @@ describe('price sync task', () => {
     await jest.advanceTimersByTimeAsync(INTERVAL);
 
     await expect(historyOf(bitcoinId)).resolves.toEqual([65000.5]);
-    expect(consoleError).not.toHaveBeenCalled();
+    expect(logs.filter((entry) => entry.level === 'error')).toEqual([]);
   });
 
   it('PriceSync_ShouldNotCallCoinMarketCap_WhenNothingIsTracked', async () => {

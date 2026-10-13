@@ -1,3 +1,5 @@
+import type { Logger } from '../logger/logger';
+
 export interface ScheduledTask {
   name: string;
   intervalMs: number;
@@ -8,12 +10,15 @@ export class TaskScheduler {
   private readonly timers: NodeJS.Timeout[] = [];
   private readonly running = new Map<string, Promise<void>>();
 
-  constructor(private readonly tasks: ScheduledTask[]) {}
+  constructor(
+    private readonly tasks: ScheduledTask[],
+    private readonly logger: Logger,
+  ) {}
 
   start(): void {
     for (const task of this.tasks) {
       this.timers.push(setInterval(() => this.runTask(task), task.intervalMs));
-      console.log(`Task "${task.name}" is scheduled every ${task.intervalMs} ms`);
+      this.logger.info('Task scheduled', { task: task.name, intervalMs: task.intervalMs });
     }
   }
 
@@ -27,7 +32,7 @@ export class TaskScheduler {
 
   private runTask(task: ScheduledTask): void {
     if (this.running.has(task.name)) {
-      console.warn(`Task "${task.name}" is still running, skipping this run`);
+      this.logger.warn('Task is still running, skipping this run', { task: task.name });
       return;
     }
 
@@ -35,10 +40,10 @@ export class TaskScheduler {
     const execution = task
       .run()
       .then((result) => {
-        console.log(`Task "${task.name}" finished in ${Date.now() - startedAt} ms`, result);
+        this.logger.info('Task finished', { task: task.name, durationMs: Date.now() - startedAt, result });
       })
       .catch((error: unknown) => {
-        console.error(`Task "${task.name}" failed after ${Date.now() - startedAt} ms:`, error);
+        this.logger.error('Task failed', { task: task.name, durationMs: Date.now() - startedAt, error });
       })
       .finally(() => {
         this.running.delete(task.name);

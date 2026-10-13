@@ -2,6 +2,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import axios, { type AxiosInstance } from 'axios';
 import { PRICE_CURRENCY, type CoinMarketCapConfig } from '../config';
 import { ExternalApiError } from '../errors';
+import type { Logger } from '../logger/logger';
 import type { MarketCoin, MarketDataProvider } from './market-data-provider';
 
 interface MapEntry {
@@ -75,7 +76,10 @@ function compareByRelevance(a: MapEntry, b: MapEntry): number {
 export class CoinMarketCapClient implements MarketDataProvider {
   private readonly http: AxiosInstance;
 
-  constructor(private readonly config: CoinMarketCapConfig) {
+  constructor(
+    private readonly config: CoinMarketCapConfig,
+    private readonly logger: Logger,
+  ) {
     this.http = axios.create({
       baseURL: config.baseUrl,
       timeout: config.timeoutMs,
@@ -146,6 +150,7 @@ export class CoinMarketCapClient implements MarketDataProvider {
   private async get(path: string, params: Record<string, string>): Promise<unknown> {
     for (let attempt = 0; ; attempt += 1) {
       try {
+        this.logger.debug('CoinMarketCap request', { path, params, attempt: attempt + 1 });
         const response = await this.http.get(path, { params });
         return response.data;
       } catch (error) {
@@ -153,7 +158,15 @@ export class CoinMarketCapClient implements MarketDataProvider {
           throw error;
         }
 
-        await delay(this.config.retryDelayMs * 2 ** attempt);
+        const delayMs = this.config.retryDelayMs * 2 ** attempt;
+        this.logger.warn('CoinMarketCap request failed, retrying', {
+          path,
+          attempt: attempt + 1,
+          status: getHttpStatus(error),
+          code: (error as { code?: string } | null)?.code,
+          delayMs,
+        });
+        await delay(delayMs);
       }
     }
   }

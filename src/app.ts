@@ -1,7 +1,9 @@
 import express, { type Express } from 'express';
 import type { Database } from './db/database';
+import type { Logger } from './logger/logger';
 import { createAuthMiddleware } from './middlewares/auth';
-import { errorHandler, notFoundHandler } from './middlewares/error-handler';
+import { createErrorHandler, notFoundHandler } from './middlewares/error-handler';
+import { createRequestLogger } from './middlewares/request-logger';
 import { CryptocurrencyController } from './modules/cryptocurrencies/cryptocurrency.controller';
 import { createCryptocurrencyRouter } from './modules/cryptocurrencies/cryptocurrency.routes';
 import { createHealthRouter } from './modules/health/health.routes';
@@ -13,15 +15,17 @@ interface AppDependencies {
   db: Database;
   services: Services;
   apiKey: string;
+  logger: Logger;
 }
 
-export function createApp({ db, services, apiKey }: AppDependencies): Express {
+export function createApp({ db, services, apiKey, logger }: AppDependencies): Express {
   const cryptocurrencyController = new CryptocurrencyController(services.cryptocurrencyService);
   const priceController = new PriceController(services.priceService);
 
   const app = express();
 
-  app.use(createHealthRouter(db));
+  app.use(createRequestLogger(logger));
+  app.use(createHealthRouter(db, logger));
   app.use(
     '/api',
     createAuthMiddleware(apiKey),
@@ -30,7 +34,7 @@ export function createApp({ db, services, apiKey }: AppDependencies): Express {
     createPriceRouter(priceController),
   );
   app.use(notFoundHandler);
-  app.use(errorHandler);
+  app.use(createErrorHandler(logger));
 
   return app;
 }

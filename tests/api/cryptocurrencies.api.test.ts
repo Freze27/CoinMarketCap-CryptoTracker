@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import request from 'supertest';
 import type { Database } from '../../src/db/database';
+import type { LogEntry } from '../helpers/logger';
 import { AUTH_HEADER, cmcHttpError, cmcMapResponse, cmcNetworkError, createTestApp } from '../helpers/app';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -10,6 +11,7 @@ describe('Cryptocurrencies API', () => {
   let app: Express;
   let db: Database;
   let cmcGet: jest.Mock;
+  let logs: LogEntry[];
 
   function api(): ReturnType<typeof request.agent> {
     return request.agent(app).set('Authorization', AUTH_HEADER);
@@ -21,7 +23,7 @@ describe('Cryptocurrencies API', () => {
   }
 
   beforeEach(() => {
-    ({ app, db, cmcGet } = createTestApp());
+    ({ app, db, cmcGet, logs } = createTestApp());
   });
 
   afterEach(() => {
@@ -49,15 +51,20 @@ describe('Cryptocurrencies API', () => {
     });
 
     it('GetAll_ShouldReturn500WithoutDetails_WhenDatabaseIsUnavailable', async () => {
-      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
       db.close();
 
       const response = await api().get('/api/cryptocurrencies');
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({ error: { message: 'Internal server error' } });
-      expect(consoleError).toHaveBeenCalled();
-      consoleError.mockRestore();
+      expect(logs).toContainEqual(
+        expect.objectContaining({
+          level: 'error',
+          message: 'Request failed',
+          status: 500,
+          error: expect.objectContaining({ name: 'DatabaseError' }),
+        }),
+      );
     });
   });
 
@@ -145,7 +152,6 @@ describe('Cryptocurrencies API', () => {
       ['RejectsApiKey', cmcHttpError(401), 1],
       ['DeniesAccessToEndpoint', cmcHttpError(403), 1],
     ])('Create_ShouldReturn503AndSaveNothing_WhenCoinMarketCap%s', async (_case, error, expectedCalls) => {
-      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
       cmcGet.mockRejectedValue(error);
 
       const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin' });
@@ -153,20 +159,18 @@ describe('Cryptocurrencies API', () => {
       expect(response.status).toBe(503);
       expect(response.body).toEqual({ error: { message: 'CoinMarketCap is unavailable' } });
       expect(cmcGet).toHaveBeenCalledTimes(expectedCalls);
-      expect(JSON.stringify(consoleError.mock.calls)).not.toContain('test-cmc-key');
+      expect(logs).toContainEqual(expect.objectContaining({ level: 'error', message: 'Request failed', status: 503 }));
+      expect(JSON.stringify(logs)).not.toContain('test-cmc-key');
       await expect(api().get('/api/cryptocurrencies')).resolves.toMatchObject({ body: { data: [] } });
-      consoleError.mockRestore();
     });
 
     it('Create_ShouldReturn503_WhenCoinMarketCapReturnsUnexpectedResponse', async () => {
-      const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
       cmcGet.mockResolvedValueOnce({ data: { status: { error_code: 0 } } });
 
       const response = await api().post('/api/cryptocurrencies').send({ symbol: 'BTC', name: 'Bitcoin' });
 
       expect(response.status).toBe(503);
       expect(response.body).toEqual({ error: { message: 'CoinMarketCap returned an unexpected response' } });
-      consoleError.mockRestore();
     });
 
     it('Create_ShouldReturn409WithoutCallingCoinMarketCap_WhenSymbolAlreadyExists', async () => {

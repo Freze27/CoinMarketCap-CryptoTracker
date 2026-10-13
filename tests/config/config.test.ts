@@ -6,6 +6,7 @@ describe('loadConfig', () => {
   it('LoadConfig_ShouldReturnDefaults_WhenOnlyRequiredVariablesAreSet', () => {
     expect(loadConfig(REQUIRED)).toEqual({
       port: 3000,
+      logLevel: 'info',
       databasePath: './data/app.db',
       apiKey: 'api-key',
       priceCacheTtlMs: 60000,
@@ -24,6 +25,7 @@ describe('loadConfig', () => {
   it('LoadConfig_ShouldReturnValuesFromEnvironment_WhenVariablesAreSet', () => {
     const config = loadConfig({
       PORT: '8080',
+      LOG_LEVEL: 'debug',
       DATABASE_PATH: './storage/prices.db',
       API_KEY: ' my-api-key ',
       PRICE_CACHE_TTL_MS: '0',
@@ -39,6 +41,7 @@ describe('loadConfig', () => {
 
     expect(config).toEqual({
       port: 8080,
+      logLevel: 'debug',
       databasePath: './storage/prices.db',
       apiKey: 'my-api-key',
       priceCacheTtlMs: 0,
@@ -85,5 +88,13 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...REQUIRED, PRICE_SYNC_ENABLED: value })).toThrow(
       'PRICE_SYNC_ENABLED must be "true" or "false"',
     );
+  });
+
+  it.each(['error', 'warn', 'info', 'debug', 'trace', 'silent'])('LoadConfig_ShouldAcceptLogLevel_WhenValueIs%s', (level) => {
+    expect(loadConfig({ ...REQUIRED, LOG_LEVEL: level }).logLevel).toBe(level);
+  });
+
+  it.each(['verbose', 'INFO', '1'])('LoadConfig_ShouldThrow_WhenLogLevelIs%s', (level) => {
+    expect(() => loadConfig({ ...REQUIRED, LOG_LEVEL: level })).toThrow('LOG_LEVEL must be one of');
   });
 });

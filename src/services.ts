@@ -1,5 +1,6 @@
 import type { MarketDataProvider } from './clients/market-data-provider';
 import type { Database } from './db/database';
+import type { Logger } from './logger/logger';
 import { CryptocurrencyService } from './modules/cryptocurrencies/cryptocurrency.service';
 import { SqliteCryptocurrencyRepository } from './modules/cryptocurrencies/sqlite-cryptocurrency.repository';
 import { PriceService } from './modules/prices/price.service';
@@ -9,6 +10,7 @@ interface ServiceDependencies {
   db: Database;
   marketData: MarketDataProvider;
   priceCacheTtlMs: number;
+  logger: Logger;
 }
 
 export interface Services {
@@ -16,12 +18,18 @@ export interface Services {
   priceService: PriceService;
 }
 
-export function createServices({ db, marketData, priceCacheTtlMs }: ServiceDependencies): Services {
+export function createServices({ db, marketData, priceCacheTtlMs, logger }: ServiceDependencies): Services {
   const cryptocurrencyRepository = new SqliteCryptocurrencyRepository(db);
   const priceHistoryRepository = new SqlitePriceHistoryRepository(db);
 
   return {
-    cryptocurrencyService: new CryptocurrencyService(cryptocurrencyRepository, marketData),
-    priceService: new PriceService(cryptocurrencyRepository, priceHistoryRepository, marketData, priceCacheTtlMs),
+    cryptocurrencyService: new CryptocurrencyService(cryptocurrencyRepository, marketData, logger),
+    priceService: new PriceService(
+      cryptocurrencyRepository,
+      priceHistoryRepository,
+      marketData,
+      priceCacheTtlMs,
+      logger,
+    ),
   };
 }

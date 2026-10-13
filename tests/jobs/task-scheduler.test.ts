@@ -1,4 +1,6 @@
 import { TaskScheduler } from '../../src/jobs/task-scheduler';
+import type { Logger } from '../../src/logger/logger';
+import { createMemoryLogger, type LogEntry } from '../helpers/logger';
 
 const INTERVAL = 1000;
 
@@ -12,25 +14,21 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 }
 
 describe('TaskScheduler', () => {
-  let consoleLog: jest.SpyInstance;
-  let consoleWarn: jest.SpyInstance;
-  let consoleError: jest.SpyInstance;
+  let logger: Logger;
+  let logs: LogEntry[];
 
   beforeEach(() => {
     jest.useFakeTimers();
-    consoleLog = jest.spyOn(console, 'log').mockImplementation(() => undefined);
-    consoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-    consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    ({ logger, logs } = createMemoryLogger());
   });
 
   afterEach(() => {
     jest.useRealTimers();
-    jest.restoreAllMocks();
   });
 
   it('Start_ShouldNotRunTask_WhenIntervalHasNotPassed', async () => {
     const run = jest.fn().mockResolvedValue(undefined);
-    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }]);
+    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }], logger);
 
     scheduler.start();
     await jest.advanceTimersByTimeAsync(INTERVAL - 1);
@@ -41,7 +39,7 @@ describe('TaskScheduler', () => {
 
   it('Start_ShouldRunTaskOnEveryInterval_WhenTimePasses', async () => {
     const run = jest.fn().mockResolvedValue(undefined);
-    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }]);
+    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }], logger);
 
     scheduler.start();
     await jest.advanceTimersByTimeAsync(INTERVAL * 3);
@@ -53,10 +51,13 @@ describe('TaskScheduler', () => {
   it('Start_ShouldRunEachTaskOnItsOwnInterval_WhenSeveralTasksAreScheduled', async () => {
     const fast = jest.fn().mockResolvedValue(undefined);
     const slow = jest.fn().mockResolvedValue(undefined);
-    const scheduler = new TaskScheduler([
-      { name: 'fast', intervalMs: INTERVAL, run: fast },
-      { name: 'slow', intervalMs: INTERVAL * 2, run: slow },
-    ]);
+    const scheduler = new TaskScheduler(
+      [
+        { name: 'fast', intervalMs: INTERVAL, run: fast },
+        { name: 'slow', intervalMs: INTERVAL * 2, run: slow },
+      ],
+      logger,
+    );
 
     scheduler.start();
     await jest.advanceTimersByTimeAsync(INTERVAL * 4);
@@ -69,13 +70,15 @@ describe('TaskScheduler', () => {
   it('Start_ShouldSkipRun_WhenPreviousRunIsStillInProgress', async () => {
     const firstRun = deferred();
     const run = jest.fn().mockReturnValueOnce(firstRun.promise).mockResolvedValue(undefined);
-    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }]);
+    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }], logger);
 
     scheduler.start();
     await jest.advanceTimersByTimeAsync(INTERVAL * 3);
 
     expect(run).toHaveBeenCalledTimes(1);
-    expect(consoleWarn).toHaveBeenCalledWith('Task "task" is still running, skipping this run');
+    expect(logs).toContainEqual(
+      expect.objectContaining({ level: 'warn', message: 'Task is still running, skipping this run', task: 'task' }),
+    );
 
     firstRun.resolve();
     await jest.advanceTimersByTimeAsync(INTERVAL);
@@ -86,30 +89,45 @@ describe('TaskScheduler', () => {
 
   it('Start_ShouldKeepRunningTask_WhenPreviousRunFailed', async () => {
     const run = jest.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue(undefined);
-    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }]);
+    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }], logger);
 
     scheduler.start();
     await jest.advanceTimersByTimeAsync(INTERVAL * 2);
 
     expect(run).toHaveBeenCalledTimes(2);
-    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('Task "task" failed'), expect.any(Error));
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Task failed',
+        task: 'task',
+        error: expect.objectContaining({ message: 'boom' }),
+      }),
+    );
     await scheduler.stop();
   });
 
   it('Start_ShouldLogResult_WhenRunSucceeds', async () => {
     const run = jest.fn().mockResolvedValue({ savedPrices: 2 });
-    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }]);
+    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }], logger);
 
     scheduler.start();
     await jest.advanceTimersByTimeAsync(INTERVAL);
 
-    expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('Task "task" finished'), { savedPrices: 2 });
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        level: 'info',
+        message: 'Task finished',
+        task: 'task',
+        durationMs: expect.any(Number),
+        result: { savedPrices: 2 },
+      }),
+    );
     await scheduler.stop();
   });
 
   it('Stop_ShouldClearTimersAndPreventFurtherRuns_WhenCalled', async () => {
     const run = jest.fn().mockResolvedValue(undefined);
-    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }]);
+    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }], logger);
     scheduler.start();
     await jest.advanceTimersByTimeAsync(INTERVAL);
 
@@ -123,7 +141,7 @@ describe('TaskScheduler', () => {
   it('Stop_ShouldWaitForRunningTask_WhenRunIsInProgress', async () => {
     const currentRun = deferred();
     const run = jest.fn().mockReturnValue(currentRun.promise);
-    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }]);
+    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run }], logger);
     scheduler.start();
     await jest.advanceTimersByTimeAsync(INTERVAL);
 
@@ -142,7 +160,7 @@ describe('TaskScheduler', () => {
   });
 
   it('Stop_ShouldResolve_WhenSchedulerWasNotStarted', async () => {
-    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run: jest.fn() }]);
+    const scheduler = new TaskScheduler([{ name: 'task', intervalMs: INTERVAL, run: jest.fn() }], logger);
 
     await expect(scheduler.stop()).resolves.toBeUndefined();
   });
