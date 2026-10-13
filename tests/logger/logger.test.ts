@@ -95,6 +95,51 @@ describe('createLogger', () => {
     });
   });
 
+  it('Log_ShouldNotThrowAndKeepMessage_WhenContextIsCircular', () => {
+    const { logger, lines } = capture('info');
+    const circular: Record<string, unknown> = { name: 'loop' };
+    circular.self = circular;
+
+    expect(() => logger.info('Task finished', { result: circular })).not.toThrow();
+
+    expect(JSON.parse(lines[0][1])).toEqual({
+      timestamp: expect.any(String),
+      level: 'info',
+      message: 'Task finished',
+      serializationError: 'Log context could not be serialized',
+    });
+  });
+
+  it('Log_ShouldWriteBigIntAsString_WhenContextContainsBigInt', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('Row inserted', { rowId: 9007199254740993n });
+
+    expect(JSON.parse(lines[0][1]).rowId).toBe('9007199254740993');
+  });
+
+  it('Log_ShouldKeepOwnTimestampLevelAndMessage_WhenContextHasSameKeys', () => {
+    const { logger, lines } = capture('info');
+
+    logger.info('real message', { timestamp: 'fake', level: 'error', message: 'fake', extra: 1 });
+
+    const entry = JSON.parse(lines[0][1]);
+    expect(entry).toMatchObject({ level: 'info', message: 'real message', extra: 1 });
+    expect(entry.timestamp).not.toBe('fake');
+  });
+
+  it.each(['authorization', 'Authorization', 'X-CMC_PRO_API_KEY', 'apiKey', 'api_key', 'token', 'accessToken', 'password', 'secret'])(
+    'Log_ShouldRedactValue_WhenKeyIs%s',
+    (key) => {
+      const { logger, lines } = capture('info');
+
+      logger.info('Request failed', { error: { config: { headers: { [key]: 'super-secret-value' } } } });
+
+      expect(lines[0][1]).not.toContain('super-secret-value');
+      expect(lines[0][1]).toContain('[redacted]');
+    },
+  );
+
   it('Log_ShouldWriteErrorsAndWarningsToStderrAndRestToStdout_WhenDefaultWriterIsUsed', () => {
     const stdout = jest.spyOn(process.stdout, 'write').mockImplementation(() => true);
     const stderr = jest.spyOn(process.stderr, 'write').mockImplementation(() => true);
